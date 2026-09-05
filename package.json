@@ -1,8 +1,16 @@
 {
   "name": "@lilbunnyrabbit/agtc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent Traffic Control: air traffic control for your coding agents. Terminal dashboard for local Claude Code and Codex sessions.",
-  "keywords": ["claude-code", "codex", "agents", "tui", "dashboard", "worktree", "bun"],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "agents",
+    "tui",
+    "dashboard",
+    "worktree",
+    "bun"
+  ],
   "homepage": "https://github.com/lilBunnyRabbit/agtc#readme",
   "repository": {
     "type": "git",
@@ -17,11 +25,15 @@
   "bin": {
     "agtc": "./agtc.ts"
   },
-  "files": ["agtc.ts"],
+  "files": [
+    "agtc.ts"
+  ],
   "engines": {
     "bun": ">=1.1"
   },
-  "os": ["darwin"],
+  "os": [
+    "darwin"
+  ],
   "scripts": {
     "start": "bun agtc.ts",
     "check": "bunx tsc --noEmit",
