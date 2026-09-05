@@ -71,8 +71,12 @@ tell application "Terminal"
   return ""
 end tell`;
 
+/** macOS pseudo-terminal names look like "ttys004". Anything else never reaches the script. */
+const TTY_NAME = /^ttys\d+$/;
+
 /** Brings the tab attached to `tty` to the front. False when no such tab exists. */
 export async function focusTerminalTab(tty: string): Promise<boolean> {
+  if (!TTY_NAME.test(tty)) return false;
   if (!(await isTerminalRunning())) return false;
   return (await run(["osascript", "-e", focusTabScript(tty)])) === "ok";
 }

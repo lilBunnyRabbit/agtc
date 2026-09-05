@@ -44,7 +44,12 @@ export interface Session extends SessionInput {
   searchText: string;
 }
 
+/** Single-quotes a string for a POSIX shell, so nothing inside it expands when pasted. */
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+
+/** The command to pick this session up again in a fresh terminal. Copied, never run. */
 export function resumeCommand(session: Session): string {
-  const cd = `cd ${JSON.stringify(session.cwd)}`;
-  return session.tool === "claude" ? `${cd} && claude --resume ${session.id}` : `${cd} && codex resume ${session.id}`;
+  const cd = `cd ${shellQuote(session.cwd)}`;
+  const id = shellQuote(session.id);
+  return session.tool === "claude" ? `${cd} && claude --resume ${id}` : `${cd} && codex resume ${id}`;
 }
