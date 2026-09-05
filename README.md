@@ -56,6 +56,7 @@ agtc --inactive      start with inactive sessions shown
 agtc --bell          ring the terminal bell when a session finishes while you are elsewhere
 agtc --json          print all sessions as JSON
 agtc --once          print one frame and exit
+agtc --help          usage
 ```
 
 ## How it works
@@ -75,8 +76,23 @@ No hooks, no daemons, no config. Everything is read from what the tools already 
 git clone https://github.com/lilBunnyRabbit/agtc
 cd agtc
 bun install
-bun agtc.ts
+bun start         # or: bun src/main.ts
+bun run check     # typecheck
 bun link          # makes `agtc` on your PATH point at this checkout
+```
+
+Layout:
+
+```
+src/main.ts          entry: --help / --version / --json / --once / TUI
+src/cli.ts           flag parsing and usage text
+src/session.ts       Session type, status order
+src/sessions.ts      collects from every source, resolves "done", sorts
+src/search.ts        `/` filtering and match snippets
+src/seen-store.ts    persisted "seen" marks (~/.cache/agtc/state.json)
+src/sources/         claude/ (registry + history), codex/ (sqlite, lsof, rollout log), git, processes, terminal
+src/tui/             ansi codes, theme, row layout, frame rendering, key parsing, App loop
+src/lib/             shell, files, text, time, ttl-cache helpers
 ```
 
 ## Releasing

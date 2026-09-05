@@ -26,7 +26,7 @@
     "agtc": "bin/agtc"
   },
   "files": [
-    "agtc.ts",
+    "src",
     "bin/agtc"
   ],
   "engines": {
@@ -36,9 +36,9 @@
     "darwin"
   ],
   "scripts": {
-    "start": "bun agtc.ts",
+    "start": "bun src/main.ts",
     "check": "bunx tsc --noEmit",
-    "smoke": "bun agtc.ts --json > /dev/null"
+    "smoke": "bun src/main.ts --json > /dev/null"
   },
   "publishConfig": {
     "access": "public",

@@ -1,2 +1,2 @@
 #!/usr/bin/env bun
-import "../agtc.ts";
+import "../src/main.ts";
