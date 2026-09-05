@@ -23,10 +23,11 @@
   "author": "lilBunnyRabbit",
   "type": "module",
   "bin": {
-    "agtc": "./agtc.ts"
+    "agtc": "bin/agtc"
   },
   "files": [
-    "agtc.ts"
+    "agtc.ts",
+    "bin/agtc"
   ],
   "engines": {
     "bun": ">=1.1"
