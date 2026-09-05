@@ -1,7 +1,7 @@
 name: release
 
 # Publishes to npm via trusted publishing (OIDC) — no NPM_TOKEN secret.
-# One-time setup on npmjs.com: package agtc → Settings → Trusted Publisher →
+# One-time setup on npmjs.com: package @lilbunnyrabbit/agtc → Settings → Trusted Publisher →
 # GitHub Actions, owner lilBunnyRabbit, repository agtc, workflow release.yml.
 
 on:

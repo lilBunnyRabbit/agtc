@@ -5,7 +5,13 @@ Air traffic control for your coding agents.
 A terminal dashboard for every Claude Code and Codex CLI session running on your Mac: which repo and worktree each one is in, whether it is busy, idle, waiting for input, or finished with output you have not looked at yet. Read-only. It watches your agents, it does not launch them.
 
 ```
-bunx agtc
+bunx @lilbunnyrabbit/agtc
+```
+
+Or install once and get the `agtc` command:
+
+```
+bun add -g @lilbunnyrabbit/agtc
 ```
 
 Requires [Bun](https://bun.sh) and macOS (Terminal.app integration). Does not run under `npx`.
@@ -84,7 +90,7 @@ git push --follow-tags
 
 GitHub Actions runs a smoke test, publishes to npm with provenance, and creates a GitHub release.
 
-One-time setup: the first version is published by hand (`npm publish --access public`), then on npmjs.com under the package's Settings → Trusted Publisher, register GitHub Actions with owner `lilBunnyRabbit`, repository `agtc`, workflow `release.yml`.
+One-time setup: the first version is published by hand (`npm publish --access public --provenance=false`), then on npmjs.com under the package's Settings → Trusted Publisher, register GitHub Actions with owner `lilBunnyRabbit`, repository `agtc`, workflow `release.yml`.
 
 ## License
 
