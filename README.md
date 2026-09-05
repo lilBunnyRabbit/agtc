@@ -70,6 +70,28 @@ No hooks, no daemons, no config. Everything is read from what the tools already 
 
 "Seen" marks persist in `~/.cache/agtc/state.json`.
 
+## Security
+
+agtc is read-only and offline. The full footprint:
+
+- **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
+- **Writes** one file: `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them).
+- **Spawns** `ps`, `lsof`, `git rev-parse`, `osascript` and `pbcopy`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first.
+- **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs.
+- **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.
+- macOS asks for Automation permission (control Terminal.app) the first time. Denying it only disables tab titles, the seen detection and `enter`.
+- `c` copies a single-quoted `cd '<cwd>' && claude --resume '<id>'` to the clipboard. It never executes anything.
+- `--json` includes each session's title, first and last prompt, and working directory. The full prompt list stays in memory only.
+
+To run exactly what you reviewed, pin a version. Every release is published from GitHub Actions with npm provenance, so the tarball can be traced to a commit:
+
+```
+bunx @lilbunnyrabbit/agtc@0.2.0
+npm view @lilbunnyrabbit/agtc@0.2.0 dist.attestations
+```
+
+GitHub Actions in the workflows are pinned to commit SHAs.
+
 ## Development
 
 ```
@@ -78,6 +100,7 @@ cd agtc
 bun install
 bun start         # or: bun src/main.ts
 bun run check     # typecheck
+bun run check:offline
 bun link          # makes `agtc` on your PATH point at this checkout
 ```
 

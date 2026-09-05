@@ -38,6 +38,7 @@
   "scripts": {
     "start": "bun src/main.ts",
     "check": "bunx tsc --noEmit",
+    "check:offline": "sh scripts/verify-offline.sh",
     "smoke": "bun src/main.ts --json > /dev/null"
   },
   "publishConfig": {
