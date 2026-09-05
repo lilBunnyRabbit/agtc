@@ -1,4 +1,4 @@
-export type Mode = "tui" | "once" | "json" | "help" | "version";
+export type Mode = "tui" | "once" | "json" | "update" | "help" | "version";
 
 export interface Options {
   mode: Mode;
@@ -19,6 +19,7 @@ Usage
   agtc                 interactive TUI
   agtc --once          print one frame and exit
   agtc --json          dump sessions as JSON
+  agtc update          update to the newest published version
 
 Options
   --days N             list inactive sessions from the last N days (default ${DEFAULT_DAYS})
@@ -47,15 +48,20 @@ export function parseArgs(argv: string[]): Options {
     return Number.isFinite(value) && value > 0 ? value : fallback;
   };
 
+  const command = argv[0]?.startsWith("-") ? undefined : argv[0];
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")
       ? "version"
-      : has("--json")
-        ? "json"
-        : has("--once")
-          ? "once"
-          : "tui";
+      : command === "update"
+        ? "update"
+        : command !== undefined
+          ? "help" // unknown command
+          : has("--json")
+            ? "json"
+            : has("--once")
+              ? "once"
+              : "tui";
 
   return {
     mode,

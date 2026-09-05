@@ -12,6 +12,7 @@ Or install once and get the `agtc` command:
 
 ```
 bun add -g @lilbunnyrabbit/agtc
+agtc update          # later: pulls the newest version
 ```
 
 Requires [Bun](https://bun.sh) and macOS (Terminal.app integration). Does not run under `npx`.
@@ -56,8 +57,11 @@ agtc --inactive      start with inactive sessions shown
 agtc --bell          ring the terminal bell when a session finishes while you are elsewhere
 agtc --json          print all sessions as JSON
 agtc --once          print one frame and exit
+agtc update          update this install to the newest version
 agtc --help          usage
 ```
+
+`agtc update` runs `bun add -g @lilbunnyrabbit/agtc@latest` (or the npm equivalent) for you. Plain `bun update -g` will not do: `bun add -g` writes `^0.x.y` to the global package.json, and a caret on a 0.x version never crosses a minor release. Under `bunx` or a git checkout the command only tells you what to do.
 
 ## How it works
 
@@ -77,7 +81,7 @@ agtc is read-only and offline. The full footprint:
 - **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
 - **Writes** one file: `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them).
 - **Spawns** `ps`, `lsof`, `git rev-parse`, `osascript` and `pbcopy`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first.
-- **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs.
+- **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.
 - **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.
 - macOS asks for Automation permission (control Terminal.app) the first time. Denying it only disables tab titles, the seen detection and `enter`.
 - `c` copies a single-quoted `cd '<cwd>' && claude --resume '<id>'` to the clipboard. It never executes anything.

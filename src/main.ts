@@ -4,6 +4,7 @@ import { USAGE, parseArgs } from "./cli";
 import { STATE_FILE } from "./paths";
 import { SeenStore } from "./seen-store";
 import { collectSessions } from "./sessions";
+import { selfUpdate } from "./update";
 import { App } from "./tui/app";
 import { terminalSize } from "./tui/layout";
 import { initialUiState, renderFrame } from "./tui/render";
@@ -32,6 +33,9 @@ switch (options.mode) {
     console.log(renderFrame(sessions, ui, terminalSize()).lines.join("\n"));
     break;
   }
+
+  case "update":
+    process.exit(await selfUpdate());
 
   case "tui":
     new App(options, seen()).start();
