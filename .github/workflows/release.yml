@@ -1,5 +1,9 @@
 name: release
 
+# Publishes to npm via trusted publishing (OIDC) — no NPM_TOKEN secret.
+# One-time setup on npmjs.com: package agtc → Settings → Trusted Publisher →
+# GitHub Actions, owner lilBunnyRabbit, repository agtc, workflow release.yml.
+
 on:
   push:
     tags: ["v*"]
@@ -33,10 +37,11 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Publish to npm
+      # trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@latest && npm --version
+
+      - name: Publish to npm (OIDC trusted publishing)
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: GitHub release
         run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"

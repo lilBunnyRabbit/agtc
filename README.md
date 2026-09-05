@@ -75,7 +75,7 @@ bun link          # makes `agtc` on your PATH point at this checkout
 
 ## Releasing
 
-Publishing is automated from tags:
+Publishing is automated from tags via npm trusted publishing (OIDC), no tokens stored anywhere:
 
 ```
 npm version patch   # or minor / major — bumps package.json, commits, tags vX.Y.Z
@@ -83,6 +83,8 @@ git push --follow-tags
 ```
 
 GitHub Actions runs a smoke test, publishes to npm with provenance, and creates a GitHub release.
+
+One-time setup: the first version is published by hand (`npm publish --access public`), then on npmjs.com under the package's Settings → Trusted Publisher, register GitHub Actions with owner `lilBunnyRabbit`, repository `agtc`, workflow `release.yml`.
 
 ## License
 
