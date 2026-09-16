@@ -34,10 +34,20 @@ export function tmuxFreeEnv(): Record<string, string | undefined> {
 
 const SEP = "\t";
 const CLIENT_FORMAT = ["#{client_tty}", "#{client_session}"].join(SEP);
-const PANE_FORMAT = ["#{pane_tty}", "#{pane_id}", "#{session_name}", "#{window_id}", "#{window_active}", "#{pane_title}"].join(SEP);
-const POPUP_SIZE = "95%";
 /** Pane option holding the name of the window a pane came from while it sits on stage. */
 const WINDOW_NAME_OPTION = "@agtc_window";
+const PANE_FORMAT = [
+  "#{pane_tty}",
+  "#{pane_id}",
+  "#{session_name}",
+  "#{window_id}",
+  "#{window_index}",
+  "#{window_active}",
+  `#{${WINDOW_NAME_OPTION}}`,
+  "#{window_name}",
+  "#{pane_title}",
+].join(SEP);
+const POPUP_SIZE = "95%";
 
 const tmux = (...args: string[]) => run(["tmux", ...args]);
 const ttyName = (path: string) => path.replace("/dev/", "");
@@ -60,12 +70,12 @@ export async function tmuxPanes(tabs: Surfaces): Promise<Surfaces> {
   }
 
   for (const line of (await tmux("list-panes", "-a", "-F", PANE_FORMAT)).split("\n")) {
-    const [ttyPath, paneId, session, windowId, windowActive, ...title] = line.split(SEP);
+    const [ttyPath, paneId, session, windowId, windowIndex, windowActive, stagedName, windowName, ...title] = line.split(SEP);
     if (!ttyPath) continue;
     panes.set(ttyName(ttyPath), {
       title: title.join(SEP),
       viewed: windowActive === "1" && watched.has(session),
-      tmux: { paneId, session, windowId, clientTty: clientTty.get(session) },
+      tmux: { paneId, session, windowId, windowIndex: Number(windowIndex), windowName: stagedName || windowName, clientTty: clientTty.get(session) },
     });
   }
   return panes;
@@ -98,9 +108,9 @@ export async function focusTmuxPane(paneId: string, stagePercent: number): Promi
 }
 
 /** Opens a shell in `cwd` in a new window and types `command` into it. Returns the pane id. */
-export async function newTmuxWindow(cwd: string, command: string, session?: string): Promise<string | undefined> {
+export async function newTmuxWindow(cwd: string, command: string, session?: string, name = basename(cwd)): Promise<string | undefined> {
   const target = session ? ["-t", `${session}:`] : [];
-  const paneId = await tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", cwd, "-n", basename(cwd), ...target);
+  const paneId = await tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", cwd, "-n", name, ...target);
   if (!paneId) return undefined;
   await succeeds(["tmux", "send-keys", "-t", paneId, command, "Enter"]);
   return paneId;
@@ -147,6 +157,11 @@ async function boundCommand(table: string, key: string): Promise<string | undefi
     if (match && match[1] === table && match[2] === key) return match[3];
   }
   return undefined;
+}
+
+/** True while a tmux server with at least one session answers. */
+export function tmuxServerRunning(): Promise<boolean> {
+  return succeeds(["tmux", "list-sessions"]);
 }
 
 export function tmuxHasSession(name: string): Promise<boolean> {

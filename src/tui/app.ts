@@ -3,11 +3,12 @@ import { basename, isAbsolute, join } from "node:path";
 import type { Options } from "../cli";
 import { openInEditor } from "../editor";
 import { HUB_SESSION } from "../hub";
-import { collapse, tildify } from "../lib/text";
+import { collapse, plural, tildify } from "../lib/text";
 import { copyToClipboard } from "../lib/shell";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
+import { restoreHub } from "../restore";
 import { type Session, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, createWorktree } from "../sources/git";
@@ -30,6 +31,7 @@ export class App {
   private refreshing = false;
   private messageTimer: ReturnType<typeof setTimeout> | undefined;
   private onPromptSubmit: ((value: string) => void) | undefined;
+  private restoreOffered = false;
   private readonly out = process.stdout;
 
   constructor(
@@ -111,12 +113,46 @@ export class App {
       this.ui.refreshedAt = Date.now();
       this.clampSelection();
       this.draw();
+      this.offerRestore();
 
       const newlyDone = this.sessions.some((s) => s.status === "done" && !previouslyDone.has(s.id));
       if (this.options.bell && newlyDone) this.out.write(ANSI.bell);
     } finally {
       this.refreshing = false;
     }
+  }
+
+  /** Once per run: the last hub had agents that are not running now, tmux is gone or fresh. */
+  private offerRestore(): void {
+    if (this.restoreOffered) return;
+    this.restoreOffered = true;
+    const missing = this.missingFromLastHub();
+    if (missing.length) this.say(`${missing.length} ${plural(missing.length, "agent", "agents")} from the last hub not running. S restores them`);
+  }
+
+  private missingFromLastHub() {
+    const running = new Set(this.sessions.filter((s) => s.status !== "inactive").map((s) => s.id));
+    return this.seen.lastHub().filter((w) => !running.has(w.id));
+  }
+
+  /** `S`: every agent window of the last hub again, in the hub session. */
+  private restoreLastHub(): void {
+    const missing = this.missingFromLastHub();
+    if (!missing.length) {
+      this.say("nothing to restore: every agent of the last hub is running");
+      return;
+    }
+    void this.hubTarget().then(async (target) => {
+      if (!target) {
+        this.say("S needs a tmux session: run `agtc tmux`");
+        return;
+      }
+      this.say(`restoring ${missing.length} ${plural(missing.length, "agent", "agents")}…`);
+      const { opened, skipped } = await restoreHub(this.seen.lastHub(), this.sessions, target.session);
+      const gone = skipped.filter((w) => !existsSync(w.cwd)).length;
+      this.say(`restored ${opened.length}${gone ? `, ${gone} skipped, directory gone` : ""}`);
+      setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
+    });
   }
 
   // ---------------------------------------------------------------- actions
@@ -306,8 +342,13 @@ export class App {
 
   /** Session a new window goes to: agtc's own (tmux picks it when unnamed), else the agent's, else the hub. */
   private async tmuxTarget(session: Session): Promise<{ session?: string } | undefined> {
+    if (session.tmux && !OWN_PANE) return { session: session.tmux.session };
+    return this.hubTarget();
+  }
+
+  /** agtc's own session when inside tmux, else the hub session when it exists. */
+  private async hubTarget(): Promise<{ session?: string } | undefined> {
     if (OWN_PANE) return {};
-    if (session.tmux) return { session: session.tmux.session };
     return (await tmuxHasSession(HUB_SESSION)) ? { session: HUB_SESSION } : undefined;
   }
 
@@ -446,6 +487,9 @@ export class App {
         return;
       case "R":
         if (session) this.resumeInTmux(session);
+        return;
+      case "S":
+        this.restoreLastHub();
         return;
       case Key.enter:
         if (session) this.focus(session);

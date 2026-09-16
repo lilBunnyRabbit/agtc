@@ -56,6 +56,7 @@ Selected session gets a detail pane: working directory, worktree and branch, unc
 | `n` | start another agent of the same kind in that checkout, in a new tmux window |
 | `N` | new worktree of that repository (asks for a branch name), then an agent in it |
 | `R` | resume an inactive session in a new tmux window, so attach and send can reach it |
+| `S` | restore the last hub: every agent window tmux held when agtc last looked, resumed in place |
 | `/` | search across every prompt you ever typed in any session, plus worktree, branch, path, tool, status |
 | `m` / `M` | mark selected / all as seen |
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
@@ -83,7 +84,7 @@ Every flow assumes the hub is running: `agtc tmux` in any terminal, Zed's includ
 
 **Zed mode.** Start with `--jump zed`: `enter` opens the checkout in Zed instead of moving panes, so the Zed terminals attached to agents keep showing them. The hub is then just the list. Use this when you live in Zed; use the default when you live in the terminal.
 
-**Resume after a restart.** Agents live in tmux, so closing Zed or the terminal loses nothing. `agtc tmux` attaches again; in Zed, `cmd-shift-a` again in each workspace.
+**Resume after a restart.** Agents live in tmux, so closing Zed or the terminal loses nothing. `agtc tmux` attaches again; in Zed, `cmd-shift-a` again in each workspace. After a reboot or `tmux kill-server` the agents are gone too: `agtc tmux`, then `S` opens every window of the last hub again, same names, same directories, each running `claude --resume` (or `codex resume`) for its session. agtc notes the windows on every poll, and says on start when some are missing. Agents already running are skipped, so `S` twice does nothing extra.
 
 **Never** archive or close a thread in Zed's sidebar for a worktree Zed itself created (paths under `../worktrees/`): that deletes the worktree. Worktrees from `N`, Claude or `git worktree add` are safe.
 
@@ -208,17 +209,17 @@ No hooks, no daemons, no config. Everything is read from what the tools already 
 - Terminal.app via AppleScript: tab titles, which tab you are looking at (that is how "done" turns into "idle"), and focusing a tab on `enter`.
 - tmux: `list-clients` and `list-panes` map ttys to panes and tell which window is in front of an attached client. A client sitting in a Terminal.app tab counts as looking only while that tab is in front.
 
-"Seen" marks persist in `~/.cache/agtc/state.json`.
+"Seen" marks persist in `~/.cache/agtc/state.json`, and so does the list of agent windows `S` restores.
 
 ## Security
 
 agtc is read-only and offline. The full footprint:
 
 - **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
-- **Writes** one file: `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them). Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
+- **Writes** one file: `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, and the agent windows tmux held, for `S`). Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
 - **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first.
 - **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a` and `option-a`, after `tmux list-keys` showed them free or already agtc's.
-- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else. `agtc send` pastes text into an agent's input without pressing enter; `agtc attach` creates a grouped tmux session. Nothing in agtc removes a file, a branch or a worktree.
+- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way. `agtc send` pastes text into an agent's input without pressing enter; `agtc attach` creates a grouped tmux session. Nothing in agtc removes a file, a branch or a worktree.
 - **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.
 - **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.
 - macOS asks for Automation permission (control Terminal.app) the first time. Denying it only disables tab titles, the seen detection and `enter` for sessions in Terminal.app tabs.
@@ -256,7 +257,8 @@ src/cli.ts           flag parsing and usage text
 src/session.ts       Session type, status order
 src/sessions.ts      collects from every source, attaches git changes, resolves "done", sorts
 src/search.ts        `/` filtering and match snippets
-src/seen-store.ts    persisted "seen" marks (~/.cache/agtc/state.json)
+src/seen-store.ts    persisted state: seen marks, last opened per checkout, last hub windows (~/.cache/agtc/state.json)
+src/restore.ts       S: the last hub's agent windows again
 src/editor.ts        `o`: open the checkout in the editor
 src/hub.ts           `agtc tmux`: create or attach the hub session
 src/lookup.ts        the agent running in a directory, for attach and send

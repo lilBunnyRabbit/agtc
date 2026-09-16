@@ -62,7 +62,7 @@ export interface Session extends SessionInput {
 export const workDir = (session: SessionInput) => session.root ?? session.cwd;
 
 /** The tool's own resume invocation, to run inside the session's cwd. */
-export function resumeInvocation(session: Session): string {
+export function resumeInvocation(session: Pick<Session, "tool" | "id">): string {
   const id = shellQuote(session.id);
   return session.tool === "claude" ? `claude --resume ${id}` : `codex resume ${id}`;
 }

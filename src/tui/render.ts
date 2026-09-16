@@ -1,4 +1,4 @@
-import { padRight, tildify, truncate, wrapWords } from "../lib/text";
+import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../search";
@@ -237,6 +237,7 @@ function renderFooter(ui: UiState, layout: Layout): string {
     "n new agent",
     "N new worktree",
     "R resume in tmux",
+    "S restore hub",
     "m seen",
     "M all",
     "c resume",
@@ -250,4 +251,3 @@ function renderFooter(ui: UiState, layout: Layout): string {
 }
 
 const onOff = (flag: boolean) => (flag ? "on" : "off");
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

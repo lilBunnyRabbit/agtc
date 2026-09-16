@@ -10,6 +10,9 @@ export interface TmuxLocation {
   paneId: string;
   session: string;
   windowId: string;
+  windowIndex: number;
+  /** The window's name, or the name the pane's window had before it went on stage. */
+  windowName: string;
   /** tty of a client attached to the pane's session, when there is one. */
   clientTty?: string;
 }

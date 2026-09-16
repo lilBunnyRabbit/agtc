@@ -1,6 +1,6 @@
 import { DAY } from "./lib/time";
 import { buildSearchText } from "./search";
-import type { SeenStore } from "./seen-store";
+import type { HubWindow, SeenStore } from "./seen-store";
 import { type Session, type SessionInput, STATUS_PRIORITY } from "./session";
 import { claudeSessions } from "./sources/claude";
 import { codexSessions } from "./sources/codex";
@@ -22,7 +22,17 @@ export async function collectSessions({ days, seen }: CollectOptions): Promise<S
   const surfaces: Surfaces = new Map([...tabs, ...(await tmuxPanes(tabs))]);
   const [claude, codex] = await Promise.all([claudeSessions({ surfaces, sinceMs }), codexSessions({ surfaces, sinceMs })]);
   const withChanges = await Promise.all([...claude, ...codex].map(attachChanges));
-  return sortSessions(withChanges.map((session) => finalize(resolveDone(session, surfaces, seen))));
+  const sessions = sortSessions(withChanges.map((session) => finalize(resolveDone(session, surfaces, seen))));
+  seen.rememberHub(hubWindows(sessions));
+  return sessions;
+}
+
+/** Live agents inside tmux in window order, as they would be recreated. */
+function hubWindows(sessions: Session[]): HubWindow[] {
+  return sessions
+    .filter((s) => s.tmux && s.status !== "inactive")
+    .sort((a, b) => a.tmux!.session.localeCompare(b.tmux!.session) || a.tmux!.windowIndex - b.tmux!.windowIndex)
+    .map(({ id, tool, cwd, tmux }) => ({ id, tool, cwd, name: tmux!.windowName }));
 }
 
 /** Git state is only worth polling for sessions that are running. */
