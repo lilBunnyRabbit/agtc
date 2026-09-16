@@ -35,7 +35,6 @@ export interface Frame {
 }
 
 const HEADER_LINES = 2; // header + blank line
-const FOOTER_LINES = 1;
 const MIN_LIST_LINES = 3;
 const PROMPT_LINES = 2;
 const MAX_EXTRA_ROOTS = 2;
@@ -46,13 +45,14 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
 
   const list = renderList(visible, ui, layout);
-  const chrome = HEADER_LINES + FOOTER_LINES;
+  const footer = renderFooter(ui, layout);
+  const chrome = HEADER_LINES + footer.length;
   const wanted = ui.showDetail && selected ? renderDetail(selected, layout) : [];
   const detail = size.rows - chrome - wanted.length >= MIN_LIST_LINES ? wanted : [];
   const body = scrollWindow(list.lines, list.lineOfSelected, Math.max(MIN_LIST_LINES, size.rows - chrome - detail.length));
 
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
-  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...detail, renderFooter(ui, layout)];
+  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible };
 }
 
@@ -217,16 +217,22 @@ function changesSummary({ changes }: Session): string {
 // ---------------------------------------------------------------- footer
 
 /** Key hints, cut from the right to fit; a message keeps its room first. */
-function renderFooter(ui: UiState, layout: Layout): string {
+const KEY_GAP = "   ";
+
+/**
+ * The key legend, wrapped so every key shows however narrow the pane; a message takes the
+ * first line's place while it lasts, so the footer keeps its height and the list stays put.
+ */
+function renderFooter(ui: UiState, layout: Layout): string[] {
   if (ui.prompt) {
     const question = `${ui.prompt.label}: ${ui.prompt.value}`;
     const hint = truncate("   enter ok · esc cancel", Math.max(0, layout.columns - 2 - question.length));
-    return ` ${style(question, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`;
+    return [` ${style(question, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`];
   }
   if (ui.searchMode) {
     const prompt = `/ ${ui.query}`;
     const hint = truncate("   type to filter · ↑↓ move · enter keep · esc clear", Math.max(0, layout.columns - 2 - prompt.length));
-    return ` ${style(prompt, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`;
+    return [` ${style(prompt, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`];
   }
   const keys = [
     "↑↓/jk move",
@@ -245,9 +251,26 @@ function renderFooter(ui: UiState, layout: Layout): string {
     `d detail:${onOff(ui.showDetail)}`,
     "q quit",
   ];
-  const message = truncate(ui.message, Math.max(0, layout.columns - 4));
-  const room = Math.max(0, layout.columns - 1 - (message ? message.length + 3 : 0));
-  return style(` ${truncate(keys.join("   "), room)}`, ANSI.dim) + (message ? `   ${style(message, ANSI.yellow)}` : "");
+  const lines = wrapItems(keys, KEY_GAP, layout.columns - 1).map((line) => style(` ${line}`, ANSI.dim));
+  if (ui.message) lines[0] = ` ${style(truncate(ui.message, Math.max(0, layout.columns - 1)), ANSI.yellow)}`;
+  return lines;
+}
+
+/** Greedy line fill: items joined by `gap`, a new line when the next item would not fit. */
+function wrapItems(items: string[], gap: string, width: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const item of items) {
+    const candidate = current ? `${current}${gap}${item}` : item;
+    if (current && candidate.length > width) {
+      lines.push(current);
+      current = item;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 const onOff = (flag: boolean) => (flag ? "on" : "off");
