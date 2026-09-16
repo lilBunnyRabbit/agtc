@@ -5,7 +5,7 @@ import { filterSessions, matchSnippet } from "../search";
 import { type Session, type Status, STATUSES, type Tool } from "../session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import { AGE_WIDTH, BLANK_CELLS, DETAIL_INDENT, type Layout, type Size, STATUS_WIDTH, computeLayout, rowPrefix, rowSuffix } from "./layout";
-import { ICON, STATUS_LABEL, statusStyle, toolIcon, worktreeIcon } from "./theme";
+import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 export interface UiState {
   /** Label for the enter key in the footer. */
@@ -62,7 +62,10 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
 function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layout: Layout): string {
   const counts = countByStatus(sessions);
   const liveCount = (tool: Tool) => sessions.filter((s) => s.tool === tool && s.status !== "inactive").length;
-  const badge = (status: Status, label: string) => style(`${label} ${counts[status]}`, ...statusStyle(status));
+  const badge = (status: Status, label: string) =>
+    needsAttention(status) && counts[status] > 0
+      ? style(` ${label} ${counts[status]} `, ...statusStyle(status), ANSI.reverse)
+      : style(`${label} ${counts[status]}`, ...statusStyle(status));
 
   const title = style("agtc", ANSI.bold);
   const tools = `${toolIcon("claude")} ${liveCount("claude")}  ${toolIcon("codex")} ${liveCount("codex")}`;
@@ -100,7 +103,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
     if (session.repo !== currentRepo) {
       currentRepo = session.repo;
       if (lines.length) lines.push("");
-      lines.push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo).length, layout));
+      lines.push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo), layout));
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
@@ -116,11 +119,16 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
   return { lines, lineOfSelected };
 }
 
-function repoRule(repo: string, count: number, layout: Layout): string {
+/** The group line carries how many of its sessions want you, so a folded-away group still shows it. */
+function repoRule(repo: string, sessions: Session[], layout: Layout): string {
   const label = ` ${repo} `;
-  const summary = ` ${plural(count, "session", "sessions")}`;
-  const rule = ICON.rule.repeat(Math.max(0, layout.columns - label.length - summary.length - 1));
-  return style(label, ANSI.bold, ANSI.cyan) + style(rule + summary, ANSI.dim);
+  const waiting = (["needs input", "done"] as const)
+    .map((status) => [status, sessions.filter((s) => s.status === status).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([status, n]) => style(` ${n} ${STATUS_LABEL[status]} `, ...statusStyle(status), ANSI.reverse));
+  const summary = `${waiting.length ? ` ${waiting.join(" ")}` : ""} ${style(plural(sessions.length, "session", "sessions"), ANSI.dim)}`;
+  const rule = ICON.rule.repeat(Math.max(0, layout.columns - label.length - visibleLength(summary) - 1));
+  return style(label, ANSI.bold, ANSI.cyan) + style(rule, ANSI.dim) + summary;
 }
 
 function selectionBar(isSelected: boolean): string {
@@ -129,19 +137,22 @@ function selectionBar(isSelected: boolean): string {
 
 function sessionLine(session: Session, isSelected: boolean, layout: Layout): string {
   const inactive = session.status === "inactive";
+  const attention = needsAttention(session.status);
   const prefix = rowPrefix({
     bar: selectionBar(isSelected),
     worktree: session.worktree ? worktreeIcon(inactive) : " ",
     tool: toolIcon(session.tool, inactive),
-    status: style(padRight(STATUS_LABEL[session.status], STATUS_WIDTH), ...statusStyle(session.status)),
+    status: attention
+      ? style(padRight(` ${STATUS_LABEL[session.status]}`, STATUS_WIDTH), ...statusStyle(session.status), ANSI.reverse)
+      : style(padRight(STATUS_LABEL[session.status], STATUS_WIDTH), ...statusStyle(session.status)),
   });
   const title = padRight(session.title, layout.titleWidth);
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
       ? style(title, ANSI.dim)
-      : session.status === "done"
-        ? style(title, ANSI.bold)
+      : attention
+        ? style(title, ...statusStyle(session.status))
         : title;
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
   return prefix + styledTitle + rowSuffix(age);

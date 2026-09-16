@@ -21,6 +21,9 @@ export const STATUS_LABEL: Record<Status, string> = {
   inactive: "inactive",
 };
 
+/** Statuses that want you: shown as a filled badge with the title in the same colour. */
+export const needsAttention = (status: Status) => status === "needs input" || status === "done";
+
 export function statusStyle(status: Status): string[] {
   switch (status) {
     case "needs input":
