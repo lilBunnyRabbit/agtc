@@ -109,8 +109,11 @@ export class App {
         next = next.map(asSeen);
       }
 
+      const selectedId = this.selected?.id;
       this.sessions = next;
       this.ui.refreshedAt = Date.now();
+      const index = selectedId ? filterSessions(next, this.ui).findIndex((s) => s.id === selectedId) : -1;
+      if (index >= 0) this.ui.selected = index;
       this.clampSelection();
       this.draw();
       this.offerRestore();

@@ -47,6 +47,8 @@ export interface SessionInput {
   prompts: string[];
   /** When the current status began. Last activity for inactive sessions. */
   since: number;
+  /** When the process started. Live sessions only; fixes their place in the list. */
+  startedAt?: number;
   /** Controlling terminal, e.g. "ttys004". Links the session to a Terminal.app tab or tmux pane. */
   tty?: string;
   /** Set when the tty is a tmux pane. */

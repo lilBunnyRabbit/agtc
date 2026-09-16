@@ -26,7 +26,7 @@ export async function codexSessions({ surfaces, sinceMs }: SourceOptions): Promi
   const live = processes.map((proc, i) => {
     const thread = proc.threadId ? threadById.get(proc.threadId) : undefined;
     const procInfo = info.get(proc.pid);
-    return thread ? liveSession(proc, thread, liveGit[i], procInfo?.tty, surfaces) : freshSession(proc, liveGit[i], procInfo, surfaces);
+    return thread ? liveSession(proc, thread, liveGit[i], procInfo, surfaces) : freshSession(proc, liveGit[i], procInfo, surfaces);
   });
   const finished = inactive.map((thread, i) => inactiveSession(thread, inactiveGit[i]));
   return [...live, ...finished];
@@ -34,7 +34,8 @@ export async function codexSessions({ surfaces, sinceMs }: SourceOptions): Promi
 
 const rootsOf = (git: GitInfo) => (git.root ? [git.root] : []);
 
-function liveSession(proc: CodexProcess, thread: CodexThread, git: GitInfo, tty: string | undefined, surfaces: Surfaces): SessionInput {
+function liveSession(proc: CodexProcess, thread: CodexThread, git: GitInfo, info: ProcessInfo | undefined, surfaces: Surfaces): SessionInput {
+  const tty = info?.tty;
   const rollout = summarizeRollout(thread.rollout_path);
   return {
     tool: "codex",
@@ -51,6 +52,7 @@ function liveSession(proc: CodexProcess, thread: CodexThread, git: GitInfo, tty:
     completedAt: rollout.status === "idle" ? rollout.at : undefined,
     prompts: rollout.prompts,
     since: rollout.at,
+    startedAt: info?.startedAt,
     tty,
     tmux: tty ? surfaces.get(tty)?.tmux : undefined,
   };
@@ -73,6 +75,7 @@ function freshSession(proc: CodexProcess, git: GitInfo, info: ProcessInfo | unde
     title: hasCustomTitle ? tabTitle : "new session, no messages yet",
     prompts: [],
     since: info?.startedAt ?? Date.now(),
+    startedAt: info?.startedAt,
     tty,
     tmux: surface?.tmux,
   };

@@ -97,6 +97,7 @@ function liveSession(
     completedAt: status === "idle" ? statusAt : undefined,
     prompts: history?.prompts ?? [],
     since: statusAt,
+    startedAt: registration.startedAt,
     tty,
     tmux: surface?.tmux,
   };

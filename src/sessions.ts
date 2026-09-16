@@ -1,7 +1,7 @@
 import { DAY } from "./lib/time";
 import { buildSearchText } from "./search";
 import type { HubWindow, SeenStore } from "./seen-store";
-import { type Session, type SessionInput, STATUS_PRIORITY } from "./session";
+import type { Session, SessionInput } from "./session";
 import { claudeSessions } from "./sources/claude";
 import { codexSessions } from "./sources/codex";
 import { gitChanges } from "./sources/git";
@@ -63,17 +63,17 @@ function finalize(session: SessionInput): Session {
   return { ...session, searchText: buildSearchText(session) };
 }
 
-/** Repos ordered by their most urgent session, then sessions by urgency, then newest first. */
+/**
+ * A fixed order, so nothing moves when a status changes: repos alphabetically, live sessions
+ * in the order they started, finished ones below them newest first. Colour says what is urgent.
+ */
 function sortSessions(sessions: Session[]): Session[] {
-  const repoRank = new Map<string, number>();
-  for (const { repo, status } of sessions) {
-    repoRank.set(repo, Math.min(repoRank.get(repo) ?? Infinity, STATUS_PRIORITY[status]));
-  }
+  const inactive = (s: Session) => Number(s.status === "inactive");
   return sessions.sort(
     (a, b) =>
-      repoRank.get(a.repo)! - repoRank.get(b.repo)! ||
       a.repo.localeCompare(b.repo) ||
-      STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] ||
-      b.since - a.since,
+      inactive(a) - inactive(b) ||
+      (inactive(a) ? b.since - a.since : (a.startedAt ?? 0) - (b.startedAt ?? 0) || (a.pid ?? 0) - (b.pid ?? 0)) ||
+      a.id.localeCompare(b.id),
   );
 }
