@@ -1,5 +1,5 @@
 import { shellQuote, succeeds } from "./lib/shell";
-import { OWN_PANE, tmuxHasSession } from "./sources/tmux";
+import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "./sources/tmux";
 
 export const HUB_SESSION = "agtc";
 export const HUB_WINDOW = "hub";
@@ -22,6 +22,6 @@ export async function openHub(argv: string[]): Promise<number> {
     const self = [process.execPath, ...argv.filter((arg) => arg !== "tmux")].map(shellQuote).join(" ");
     await succeeds(["tmux", "send-keys", "-t", `${HUB_SESSION}:${HUB_WINDOW}`, self, "Enter"]);
   }
-  const client = Bun.spawn(["tmux", "attach", "-t", `=${HUB_SESSION}`], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  const client = Bun.spawn(["tmux", "attach", "-t", `=${HUB_SESSION}`], { env: tmuxFreeEnv(), stdin: "inherit", stdout: "inherit", stderr: "inherit" });
   return client.exited;
 }

@@ -7,6 +7,7 @@ import { STATE_FILE } from "./paths";
 import { SeenStore } from "./seen-store";
 import { sendToAgent } from "./send";
 import { collectSessions } from "./sessions";
+import { detectOwnPane } from "./sources/tmux";
 import { App } from "./tui/app";
 import { terminalSize } from "./tui/layout";
 import { initialUiState, renderFrame } from "./tui/render";
@@ -14,6 +15,7 @@ import { selfUpdate } from "./update";
 
 const options = parseArgs(process.argv.slice(2));
 const seen = () => SeenStore.load(STATE_FILE);
+await detectOwnPane();
 
 switch (options.mode) {
   case "help":

@@ -158,7 +158,7 @@ The other way round: keep the agents in tmux, but look at them from Zed. Two com
 - `agtc attach` shows that agent in the terminal, live. It is a tmux session grouped with the agent's, so it shares the windows but keeps its own current window: the hub can show something else at the same time. No status bar; closing the terminal drops the view, the agent keeps running.
 - `agtc send --file F --row N` types `F:N` into the agent's input, followed by `$AGTC_SELECTION` as a fenced code block when it is set. Bracketed paste, so nothing is submitted: you add "this should be per chat, not global" and press enter yourself.
 
-Both need the agent to run inside tmux: started from the hub with `n`, `N` or `R`, or by hand in a tmux window. An agent in a Terminal.app tab is reported, not attached; quit it there and `R` brings it into tmux.
+Both need the agent to run inside tmux: started from the hub with `n`, `N` or `R`, or by hand in a tmux window. An agent in a Terminal.app tab is reported, not attached; quit it there and `R` brings it into tmux. Zed hands the environment of the `zed` call that opened a project to that project's terminals, so `o` from the hub launches Zed without tmux's variables, and `agtc attach` trusts `TMUX_PANE` only when its terminal really is that pane.
 
 Wire them to Zed tasks (`~/.config/zed/tasks.json`) and keys (`~/.config/zed/keymap.json`):
 

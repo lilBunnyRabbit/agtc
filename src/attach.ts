@@ -1,6 +1,6 @@
 import { agentIn } from "./lookup";
 import { succeeds } from "./lib/shell";
-import { OWN_PANE, tmuxHasSession } from "./sources/tmux";
+import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "./sources/tmux";
 
 /**
  * `agtc attach [DIR]`: shows the agent running in DIR (default cwd) in this terminal, live.
@@ -36,6 +36,6 @@ export async function attachAgent(dir: string): Promise<number> {
     console.log(`could not create a view on tmux session ${session}`);
     return 1;
   }
-  const client = Bun.spawn(["tmux", "attach", "-t", `=${name}`], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  const client = Bun.spawn(["tmux", "attach", "-t", `=${name}`], { env: tmuxFreeEnv(), stdin: "inherit", stdout: "inherit", stderr: "inherit" });
   return client.exited;
 }

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { launch } from "./lib/shell";
 import { type Session, workDir } from "./session";
+import { tmuxFreeEnv } from "./sources/tmux";
 
 const EDITOR = process.env.AGTC_EDITOR || "zed";
 
@@ -12,10 +13,14 @@ const EDITOR = process.env.AGTC_EDITOR || "zed";
  */
 const ZED_FLAGS = ["--existing"];
 
-/** Opens the session's checkout in the editor, at its most recently changed file. Returns the command run. */
+/**
+ * Opens the session's checkout in the editor, at its most recently changed file. Returns the
+ * command run. Zed keeps the caller's environment for the project's terminals, so tmux's
+ * variables stay out of it: `agtc attach` there must see a plain terminal.
+ */
 export function openInEditor(session: Session): string | undefined {
   const dir = workDir(session);
   const file = session.changes?.paths.map((path) => join(dir, path)).find((path) => !path.endsWith("/") && existsSync(path));
   const argv = [EDITOR, ...(EDITOR === "zed" ? ZED_FLAGS : []), dir, ...(file ? [file] : [])];
-  return launch(argv) ? argv.join(" ") : undefined;
+  return launch(argv, tmuxFreeEnv()) ? argv.join(" ") : undefined;
 }

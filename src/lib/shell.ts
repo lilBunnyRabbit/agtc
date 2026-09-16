@@ -32,9 +32,9 @@ export async function succeeds(argv: string[]): Promise<boolean> {
 }
 
 /** Starts a command and leaves it running. False when the binary is missing. */
-export function launch(argv: string[]): boolean {
+export function launch(argv: string[], env: Record<string, string | undefined> = process.env): boolean {
   try {
-    Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+    Bun.spawn(argv, { env, stdin: "ignore", stdout: "ignore", stderr: "ignore" });
     return true;
   } catch {
     return false;
