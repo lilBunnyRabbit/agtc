@@ -32,3 +32,21 @@ export function stripAnsi(text: string): string {
 export function visibleLength(text: string): number {
   return stripAnsi(text).length;
 }
+
+const ELLIPSIS = "…";
+
+/** Cuts a styled string to `width` cells with an ellipsis, keeping escape sequences intact. */
+export function clip(text: string, width: number): string {
+  if (visibleLength(text) <= width) return text;
+  let out = "";
+  let room = Math.max(0, width - 1);
+  for (const part of text.split(/(\x1b\[[0-9;?]*[A-Za-z])/)) {
+    if (part.startsWith("\x1b")) {
+      out += part;
+      continue;
+    }
+    out += part.slice(0, room);
+    room = Math.max(0, room - part.length);
+  }
+  return out + ELLIPSIS + ANSI.reset;
+}

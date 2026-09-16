@@ -2,15 +2,10 @@ import { run } from "../lib/shell";
 import { SECOND } from "../lib/time";
 import { TtlCache } from "../lib/ttl-cache";
 import { listExecutables } from "./processes";
+import type { Surfaces } from "./types";
 
-export interface TerminalTab {
-  title: string;
-  /** Terminal.app is frontmost, this tab's window is frontmost, and the tab is selected. */
-  viewed: boolean;
-}
-
-/** Terminal.app tabs keyed by tty name, e.g. "ttys004". */
-export type TerminalTabs = Map<string, TerminalTab>;
+/** Terminal.app tabs keyed by tty name, e.g. "ttys004". Viewed = app and window frontmost, tab selected. */
+export type TerminalTabs = Surfaces;
 
 const FIELD_SEPARATOR = "\t";
 const FRONTMOST_MARKER = "FRONT";

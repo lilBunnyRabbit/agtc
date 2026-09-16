@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 
 const DEFAULT_TAIL_BYTES = 64 * 1024;
 
@@ -20,6 +20,40 @@ export function readTailLines(path: string, maxBytes = DEFAULT_TAIL_BYTES): stri
     return lines.filter(Boolean);
   } catch {
     return [];
+  }
+}
+
+export interface LinesFrom {
+  lines: string[];
+  /** Byte offset just past the last complete line, where the next read starts. */
+  next: number;
+}
+
+/**
+ * Complete lines of a growing file from byte `offset` on. A partial last line stays unread
+ * until it is finished. A file shorter than `offset` was rewritten: reading restarts at 0.
+ */
+export function readLinesFrom(path: string, offset: number): LinesFrom {
+  let fd: number;
+  try {
+    fd = openSync(path, "r");
+  } catch {
+    return { lines: [], next: offset };
+  }
+  try {
+    const size = fstatSync(fd).size;
+    const start = size < offset ? 0 : offset;
+    const buffer = Buffer.alloc(size - start);
+    readSync(fd, buffer, 0, buffer.length, start);
+    const text = buffer.toString("utf8");
+    const end = text.lastIndexOf("\n");
+    if (end < 0) return { lines: [], next: start };
+    const complete = text.slice(0, end + 1);
+    return { lines: complete.split("\n").filter(Boolean), next: start + Buffer.byteLength(complete) };
+  } catch {
+    return { lines: [], next: offset };
+  } finally {
+    closeSync(fd);
   }
 }
 

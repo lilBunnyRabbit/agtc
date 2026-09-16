@@ -1,3 +1,7 @@
+import { shellQuote } from "./lib/shell";
+import type { GitChanges } from "./sources/git";
+import type { TmuxLocation } from "./sources/types";
+
 export type Tool = "claude" | "codex";
 export type Status = "needs input" | "done" | "busy" | "idle" | "inactive";
 
@@ -19,12 +23,20 @@ export interface SessionInput {
   status: Status;
   /** What a "needs input" session is blocked on, when known. */
   waitingFor?: string;
+  /** Where the session started. */
   cwd: string;
+  /** Top level of the checkout the session works in. Absent outside git. */
+  root?: string;
+  /** The repository's main checkout. Absent outside git. */
+  mainRoot?: string;
+  /** Every checkout the session has edited files in, the current one first. */
+  roots: string[];
   /** Repository name: the main checkout's directory name. */
   repo: string;
-  /** Directory name of the linked worktree, when cwd is one. */
+  /** Directory name of the linked worktree, when `root` is one. */
   worktree?: string;
   branch?: string;
+  changes?: GitChanges;
   title: string;
   firstPrompt?: string;
   lastPrompt?: string;
@@ -35,8 +47,10 @@ export interface SessionInput {
   prompts: string[];
   /** When the current status began. Last activity for inactive sessions. */
   since: number;
-  /** Controlling terminal, e.g. "ttys004". Links the session to a Terminal.app tab. */
+  /** Controlling terminal, e.g. "ttys004". Links the session to a Terminal.app tab or tmux pane. */
   tty?: string;
+  /** Set when the tty is a tmux pane. */
+  tmux?: TmuxLocation;
 }
 
 export interface Session extends SessionInput {
@@ -44,12 +58,16 @@ export interface Session extends SessionInput {
   searchText: string;
 }
 
-/** Single-quotes a string for a POSIX shell, so nothing inside it expands when pasted. */
-const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+/** Directory to open, diff or start another agent in. */
+export const workDir = (session: SessionInput) => session.root ?? session.cwd;
+
+/** The tool's own resume invocation, to run inside the session's cwd. */
+export function resumeInvocation(session: Session): string {
+  const id = shellQuote(session.id);
+  return session.tool === "claude" ? `claude --resume ${id}` : `codex resume ${id}`;
+}
 
 /** The command to pick this session up again in a fresh terminal. Copied, never run. */
 export function resumeCommand(session: Session): string {
-  const cd = `cd ${shellQuote(session.cwd)}`;
-  const id = shellQuote(session.id);
-  return session.tool === "claude" ? `${cd} && claude --resume ${id}` : `${cd} && codex resume ${id}`;
+  return `cd ${shellQuote(session.cwd)} && ${resumeInvocation(session)}`;
 }

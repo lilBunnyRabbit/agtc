@@ -3,11 +3,13 @@ import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../search";
 import { type Session, type Status, STATUSES, type Tool } from "../session";
-import { ANSI, style } from "./ansi";
+import { ANSI, clip, style, visibleLength } from "./ansi";
 import { AGE_WIDTH, BLANK_CELLS, DETAIL_INDENT, type Layout, type Size, STATUS_WIDTH, computeLayout, rowPrefix, rowSuffix } from "./layout";
 import { ICON, STATUS_LABEL, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 export interface UiState {
+  /** Label for the enter key in the footer. */
+  enterHint: string;
   /** Index into the visible (filtered) list. */
   selected: number;
   showInactive: boolean;
@@ -15,13 +17,15 @@ export interface UiState {
   query: string;
   /** Keys go to the search box instead of the list. */
   searchMode: boolean;
+  /** A one-line question in the footer; keys go there while it is open. */
+  prompt?: { label: string; value: string };
   /** Transient status text shown in the footer. */
   message: string;
   refreshedAt: number;
 }
 
-export function initialUiState(showInactive: boolean): UiState {
-  return { selected: 0, showInactive, showDetail: true, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
+export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
+  return { enterHint, selected: 0, showInactive, showDetail: true, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
 }
 
 export interface Frame {
@@ -34,6 +38,7 @@ const HEADER_LINES = 2; // header + blank line
 const FOOTER_LINES = 1;
 const MIN_LIST_LINES = 3;
 const PROMPT_LINES = 2;
+const MAX_EXTRA_ROOTS = 2;
 
 export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame {
   const layout = computeLayout(size);
@@ -41,26 +46,34 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
 
   const list = renderList(visible, ui, layout);
-  const detail = ui.showDetail && selected ? renderDetail(selected, layout) : [];
-  const listHeight = Math.max(MIN_LIST_LINES, size.rows - HEADER_LINES - detail.length - FOOTER_LINES);
-  const body = scrollWindow(list.lines, list.lineOfSelected, listHeight);
+  const chrome = HEADER_LINES + FOOTER_LINES;
+  const wanted = ui.showDetail && selected ? renderDetail(selected, layout) : [];
+  const detail = size.rows - chrome - wanted.length >= MIN_LIST_LINES ? wanted : [];
+  const body = scrollWindow(list.lines, list.lineOfSelected, Math.max(MIN_LIST_LINES, size.rows - chrome - detail.length));
 
-  return { lines: [renderHeader(sessions, visible, ui), "", ...body, ...detail, renderFooter(ui)], visible };
+  // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
+  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...detail, renderFooter(ui, layout)];
+  return { lines: lines.map((line) => clip(line, layout.columns)), visible };
 }
 
 // ---------------------------------------------------------------- header
 
-function renderHeader(sessions: Session[], visible: Session[], ui: UiState): string {
+/** Full header when it fits; a narrow pane (agtc as a tmux sidebar) gets short status words and no refresh age. */
+function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layout: Layout): string {
   const counts = countByStatus(sessions);
   const liveCount = (tool: Tool) => sessions.filter((s) => s.tool === tool && s.status !== "inactive").length;
-  const badge = (status: Status) => style(`${status} ${counts[status]}`, ...statusStyle(status));
+  const badge = (status: Status, label: string) => style(`${label} ${counts[status]}`, ...statusStyle(status));
 
   const title = style("agtc", ANSI.bold);
   const tools = `${toolIcon("claude")} ${liveCount("claude")}  ${toolIcon("codex")} ${liveCount("codex")}`;
-  const badges = STATUSES.map(badge).join("   ");
   const refreshed = style(`   refreshed ${relativeAge(ui.refreshedAt)} ago`, ANSI.dim);
   const matches = ui.query ? `   ${style(`${ICON.search} "${ui.query}" ${plural(visible.length, "match", "matches")}`, ANSI.yellow)}` : "";
-  return ` ${title}   ${tools}     ${badges}${refreshed}${matches}`;
+
+  const wide = ` ${title}   ${tools}     ${STATUSES.map((s) => badge(s, s)).join("   ")}${refreshed}${matches}`;
+  if (visibleLength(wide) <= layout.columns) return wide;
+  const badges = STATUSES.map((s) => badge(s, STATUS_LABEL[s])).join("  ");
+  const compact = ` ${title}  ${tools}   ${badges}${matches}`;
+  return visibleLength(compact) <= layout.columns ? compact : ` ${title}  ${badges}${matches}`;
 }
 
 function countByStatus(sessions: Session[]): Record<Status, number> {
@@ -159,7 +172,11 @@ function renderDetail(session: Session, layout: Layout): string[] {
   push(statusLine(session));
   lines.push("");
   push(style(truncate(tildify(session.cwd, HOME), layout.detailWidth), ANSI.dim));
-  push(checkoutLine(session));
+  push(checkoutLine(session) + changesSummary(session));
+  if (session.changes?.paths.length) push(style(truncate(session.changes.paths.join("  "), layout.detailWidth), ANSI.dim));
+  for (const root of session.roots.filter((r) => r !== session.root).slice(0, MAX_EXTRA_ROOTS)) {
+    push(style(truncate(`${ICON.worktree} also in ${tildify(root, HOME)}`, layout.detailWidth), ANSI.dim));
+  }
   if (session.lastPrompt) {
     lines.push("");
     wrapWords(session.lastPrompt, layout.promptWidth, PROMPT_LINES).forEach((line, i) => push(`${i === 0 ? `${ICON.lastPrompt} ` : "  "}${line}`));
@@ -187,25 +204,49 @@ function checkoutLine(session: Session): string {
     : style(`${ICON.mainCheckout} main checkout${onBranch}`, ANSI.dim);
 }
 
+/** "   3 files +120 −14   2 ahead of origin/main", or "clean" when nothing is pending. */
+function changesSummary({ changes }: Session): string {
+  if (!changes) return "";
+  const work = changes.paths.length
+    ? `${plural(changes.paths.length, "file", "files")} ${style(`+${changes.insertions}`, ANSI.green)} ${style(`−${changes.deletions}`, ANSI.magenta)}`
+    : style("clean", ANSI.dim);
+  const ahead = changes.ahead ? style(`   ${changes.ahead} ahead of ${changes.base}`, ANSI.dim) : "";
+  return `   ${work}${ahead}`;
+}
+
 // ---------------------------------------------------------------- footer
 
-function renderFooter(ui: UiState): string {
+/** Key hints, cut from the right to fit; a message keeps its room first. */
+function renderFooter(ui: UiState, layout: Layout): string {
+  if (ui.prompt) {
+    const question = `${ui.prompt.label}: ${ui.prompt.value}`;
+    const hint = truncate("   enter ok · esc cancel", Math.max(0, layout.columns - 2 - question.length));
+    return ` ${style(question, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`;
+  }
   if (ui.searchMode) {
-    return ` ${style(`/ ${ui.query}`, ANSI.yellow)}${style("▏", ANSI.bold)}${style("   type to filter · ↑↓ move · enter keep · esc clear", ANSI.dim)}`;
+    const prompt = `/ ${ui.query}`;
+    const hint = truncate("   type to filter · ↑↓ move · enter keep · esc clear", Math.max(0, layout.columns - 2 - prompt.length));
+    return ` ${style(prompt, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`;
   }
   const keys = [
     "↑↓/jk move",
     `/ search${ui.query ? " (esc clears)" : ""}`,
-    "enter focus tab",
+    `enter ${ui.enterHint}`,
+    "o editor",
+    "v diff",
+    "n new agent",
+    "N new worktree",
+    "R resume in tmux",
     "m seen",
-    "M all seen",
-    "c copy resume",
+    "M all",
+    "c resume",
     `a inactive:${onOff(ui.showInactive)}`,
     `d detail:${onOff(ui.showDetail)}`,
     "q quit",
   ];
-  const message = ui.message ? `   ${style(ui.message, ANSI.yellow)}` : "";
-  return style(` ${keys.join("   ")}`, ANSI.dim) + message;
+  const message = truncate(ui.message, Math.max(0, layout.columns - 4));
+  const room = Math.max(0, layout.columns - 1 - (message ? message.length + 3 : 0));
+  return style(` ${truncate(keys.join("   "), room)}`, ANSI.dim) + (message ? `   ${style(message, ANSI.yellow)}` : "");
 }
 
 const onOff = (flag: boolean) => (flag ? "on" : "off");
