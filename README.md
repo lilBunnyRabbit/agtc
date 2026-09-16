@@ -63,6 +63,7 @@ Selected session gets a detail pane: working directory, worktree and branch, unc
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
 | `q` | quit |
+| `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
 
 ## Flows
 
