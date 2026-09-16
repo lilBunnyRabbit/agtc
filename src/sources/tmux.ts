@@ -96,13 +96,16 @@ const KEY_LINE = /^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/;
 
 /**
  * Makes the tmux session comfortable without touching ~/.tmux.conf: mouse on for agtc's
- * session, and `prefix a` / `option-a` jump back to agtc's pane, unzooming nothing. Runs on
- * every start inside tmux since bindings live in the server and pane ids change. A key the
- * user bound to something else is left alone. AGTC_TMUX_SETUP=0 skips all of it.
+ * session, `prefix a` / `option-a` jump back to agtc's pane, unzooming nothing, and Claude
+ * Code keeps its 24-bit colours (it drops to 256 under TMUX unless told otherwise; tmux
+ * converts for clients without RGB anyway). Runs on every start inside tmux since bindings
+ * live in the server and pane ids change. A key the user bound to something else is left
+ * alone. AGTC_TMUX_SETUP=0 skips all of it.
  */
 export async function setupTmux(ownPane: string): Promise<void> {
   if (process.env.AGTC_TMUX_SETUP === "0") return;
   await succeeds(["tmux", "set-option", "-t", ownPane, "mouse", "on"]);
+  await succeeds(["tmux", "set-environment", "-t", ownPane, "CLAUDE_CODE_TMUX_TRUECOLOR", "1"]);
   // One argument: tmux parses the string itself, an argv `;` would end the bind-key command instead.
   const back = `select-window -t ${ownPane} ; select-pane -Z -t ${ownPane}`;
   for (const [table, key] of BACK_KEYS) {
