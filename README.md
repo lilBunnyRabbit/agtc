@@ -144,7 +144,7 @@ Everything below is stock tmux; the prefix is `ctrl-b`, pressed and released bef
 
 - Switch windows: `prefix w` opens a chooser, `prefix n` / `prefix p` go next and previous, `prefix 0`..`9` by number, `prefix l` the window you came from. With `mouse on`, clicking a name in the status bar works too. From agtc, `enter` on a session does the same thing and also stages it.
 - Move between panes: `prefix o` cycles, `prefix` plus an arrow key goes in that direction, or click the pane. `prefix z` zooms the current pane to full size and back.
-- Change the layout: `prefix space` cycles side by side, stacked and more, dragging the border resizes, `prefix {` swaps the two panes. `enter` keeps it.
+- Change the layout: `prefix space` cycles side by side, stacked and more, `prefix {` swaps the two panes, `enter` keeps whatever you set. Resize by dragging the border, or `prefix :` and `resize-pane -L 10` (`-R`, `-U`, `-D`). tmux's own `prefix ctrl-arrow` never arrives on macOS until you untick the Mission Control shortcuts under Keyboard Shortcuts.
 - Close an agent: quit it (`/exit` in Claude Code, `ctrl-c` twice or `exit` for a shell), and its window closes with it. Nothing else is needed, agtc notices. `prefix &` kills the window with everything in it after a confirmation, `prefix x` kills just the pane; both end the agent, so prefer quitting it.
 - Leave: `prefix d` detaches, agents keep running, `agtc tmux` brings the session back. Closing the terminal window does the same.
 - Scroll: `prefix [` enters copy mode, arrows or page up/down move, `q` leaves. With `mouse on`, the wheel does it directly.
