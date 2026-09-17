@@ -1,3 +1,4 @@
+import pkg from "../../package.json";
 import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
@@ -82,7 +83,7 @@ function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layo
       ? style(` ${label} ${counts[status]} `, ...statusStyle(status), ANSI.reverse)
       : style(`${label} ${counts[status]}`, ...statusStyle(status));
 
-  const title = style("agtc", ANSI.bold);
+  const title = style("agtc", ANSI.bold) + style(` ${pkg.version}`, ANSI.dim);
   const tools = `${toolIcon("claude")} ${liveCount("claude")}  ${toolIcon("codex")} ${liveCount("codex")}`;
   const refreshed = style(`   refreshed ${relativeAge(ui.refreshedAt)} ago`, ANSI.dim);
   const matches = ui.query ? `   ${style(`${ICON.search} "${ui.query}" ${plural(visible.length, "match", "matches")}`, ANSI.yellow)}` : "";
