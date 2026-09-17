@@ -29,13 +29,17 @@ export async function attachAgent(dir: string): Promise<number> {
   const created =
     (await succeeds(["tmux", "new-session", "-d", "-t", `=${session}`, "-s", name])) &&
     (await succeeds(["tmux", "set-option", "-t", name, "status", "off"])) &&
-    (await succeeds(["tmux", "set-option", "-t", name, "destroy-unattached", "on"])) &&
     (await succeeds(["tmux", "select-window", "-t", `${name}:${windowId}`])) &&
     (await succeeds(["tmux", "select-pane", "-t", paneId]));
   if (!created) {
     console.log(`could not create a view on tmux session ${session}`);
     return 1;
   }
-  const client = Bun.spawn(["tmux", "attach", "-t", `=${name}`], { env: tmuxFreeEnv(), stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  // destroy-unattached must be set after the client is on: set on a detached session, tmux
+  // 3.7 destroys it on the spot.
+  const client = Bun.spawn(
+    ["tmux", "attach", "-t", `=${name}`, ";", "set-option", "-t", name, "destroy-unattached", "on"],
+    { env: tmuxFreeEnv(), stdin: "inherit", stdout: "inherit", stderr: "inherit" },
+  );
   return client.exited;
 }
