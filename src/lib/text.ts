@@ -43,4 +43,9 @@ export function tildify(path: string, home: string): string {
   return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
 }
 
+/** Puts the home directory back in place of a leading `~`. */
+export function untildify(path: string, home: string): string {
+  return path === "~" || path.startsWith("~/") ? home + path.slice(1) : path;
+}
+
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

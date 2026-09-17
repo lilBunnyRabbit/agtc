@@ -24,6 +24,12 @@ export function gitInfo(cwd: string): Promise<GitInfo> {
   return infoCache.get(cwd, () => readGitInfo(cwd));
 }
 
+/** What a tmux window in `dir` is called: the repository, plus the worktree when it is one. */
+export async function checkoutName(dir: string): Promise<string> {
+  const { repo, worktree } = await gitInfo(dir);
+  return worktree ? `${repo}/${worktree}` : repo;
+}
+
 async function readGitInfo(cwd: string): Promise<GitInfo> {
   const output = await run(["git", "-C", cwd, "rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir", "--abbrev-ref", "HEAD"]);
   if (!output) return { repo: basename(cwd) };

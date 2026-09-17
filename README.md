@@ -55,7 +55,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `enter` | jump to that session: its Terminal.app tab, or its tmux pane (inside tmux it joins agtc's window, see below) |
 | `o` | open the checkout in the editor (`AGTC_EDITOR`, default `zed`) at the most recently changed file |
 | `v` | review the checkout in a tmux popup: `lazygit` if installed, else `git diff HEAD` |
-| `n` | start another agent of the same kind in that checkout, in a new tmux window |
+| `n` | start another agent of the same kind in a new tmux window; asks where, starting from that checkout, `tab` walks the checkouts in the list |
 | `N` | new worktree of that repository (asks for a branch name), then an agent in it |
 | `R` | resume an inactive session in a new tmux window, so attach and send can reach it |
 | `S` | restore the last hub: every agent window tmux held when agtc last looked, resumed in place |
@@ -126,7 +126,7 @@ agtc tmux                    # creates the session "agtc" with agtc in window "h
 
 Run that from any terminal you like, Zed's included. Inside the hub:
 
-- `n` starts an agent in the selected session's checkout, in its own tmux window, and shows it.
+- `n` starts an agent in its own tmux window and shows it. It asks where first, prefilled with the selected session's checkout; `tab` cycles through every checkout in the list, or type a path. Windows are named after the checkout: `agtc`, or `agtc/feat+x` in a worktree.
 - `N` asks for a branch name, adds a worktree from the main checkout (`git worktree add -b <name> <dir> <base>`, or the existing branch when there is one, after fetching a remote base) and starts an agent there. Directory `<main checkout>/.claude/worktrees/<name>` with `/` turned into `+`, like Claude Code's own worktrees; change it with `--worktrees`.
 - `enter` moves the selected agent's pane into agtc's window as the stage; the agent that was there goes back to a window of its own. Windows keep their names. The first stage goes right of agtc, `--stage` percent wide; after that the two panes swap places, so the hub layout stays as you left it. Rearranging is tmux's job: `prefix space` flips to stacked, dragging the border resizes, `prefix z` zooms the stage to full screen. On a small screen skip `enter` and switch windows with `prefix w` or `prefix n`, then `prefix a` back to agtc.
 - `v` opens lazygit over the checkout as a popup; `q` closes it and you are back in agtc.

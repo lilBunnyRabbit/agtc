@@ -3,21 +3,21 @@ import { basename, isAbsolute, join } from "node:path";
 import type { Options } from "../cli";
 import { openInEditor } from "../editor";
 import { HUB_SESSION } from "../hub";
-import { collapse, plural, tildify } from "../lib/text";
+import { collapse, plural, tildify, untildify } from "../lib/text";
 import { copyToClipboard } from "../lib/shell";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
 import { restoreHub } from "../restore";
-import { type Session, resumeCommand, resumeInvocation, workDir } from "../session";
+import { type Session, type Tool, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
-import { baseBranch, createWorktree } from "../sources/git";
+import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
 import { OWN_PANE, focusTmuxPane, newTmuxWindow, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
 import { ANSI } from "./ansi";
 import { Key, isPrintable, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
-import { type UiState, initialUiState, renderFrame } from "./render";
+import { type Prompt, type UiState, initialUiState, renderFrame } from "./render";
 
 const MESSAGE_TTL_MS = 3000;
 const DEFAULT_WORKTREES_DIR = join(".claude", "worktrees");
@@ -232,24 +232,49 @@ export class App {
     void tmuxPopup(dir, command, basename(dir)).then((ok) => this.say(ok ? "" : "could not open popup"));
   }
 
-  /** `n`: another agent of the same kind in the session's checkout, in a new tmux window. */
+  /**
+   * `n`: another agent of the same kind, in a new tmux window. Asks where first, starting
+   * from the session's checkout; tab walks every checkout in the list.
+   */
   private newAgent(session: Session): void {
-    const dir = this.existingWorkDir(session);
-    if (!dir) return;
-    void this.tmuxTarget(session).then(async (target) => {
+    void this.tmuxTarget(session).then((target) => {
       if (!target) {
         this.say("n needs a tmux session: run `agtc tmux`");
         return;
       }
-      const paneId = await newTmuxWindow(dir, session.tool, target.session);
-      if (!paneId) {
-        this.say("could not open tmux window");
-        return;
-      }
-      this.say(`started ${session.tool} in ${tildify(dir, HOME)}`);
-      await this.showPane(paneId);
-      setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
+      const choices = this.knownCheckouts(session).map((dir) => tildify(dir, HOME));
+      this.ask({ label: `new ${session.tool} in`, value: choices[0], choices }, (value) => {
+        const dir = untildify(value.trim(), HOME);
+        if (!dir) return;
+        if (!existsSync(dir)) {
+          this.say(`no such directory: ${tildify(dir, HOME)}`);
+          return;
+        }
+        void this.startAgent(session.tool, dir, target.session);
+      });
     });
+  }
+
+  /** Every checkout the list knows: the session's own, the rest of its repository, then the other repositories. */
+  private knownCheckouts(session: Session): string[] {
+    const dirs = new Set([workDir(session)]);
+    const sameRepoFirst = [...this.sessions].sort((a, b) => Number(b.repo === session.repo) - Number(a.repo === session.repo));
+    for (const s of sameRepoFirst) {
+      if (s.mainRoot) dirs.add(s.mainRoot);
+      dirs.add(workDir(s));
+    }
+    return [...dirs].filter((dir) => existsSync(dir));
+  }
+
+  private async startAgent(tool: Tool, dir: string, tmuxSession: string | undefined, note = ""): Promise<void> {
+    const paneId = await newTmuxWindow(dir, tool, tmuxSession, await checkoutName(dir));
+    if (!paneId) {
+      this.say(`could not open tmux window in ${tildify(dir, HOME)}`);
+      return;
+    }
+    this.say(`started ${tool} in ${tildify(dir, HOME)}${note}`);
+    await this.showPane(paneId);
+    setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
   }
 
   /**
@@ -268,7 +293,7 @@ export class App {
         this.say("N needs a tmux session: run `agtc tmux`");
         return;
       }
-      this.ask("new worktree branch", (name) => {
+      this.ask({ label: "new worktree branch" }, (name) => {
         const branch = name.trim();
         if (!branch) return;
         const dir = join(this.worktreesDir(mainRoot), branch.replace(/\//g, "+"));
@@ -289,14 +314,7 @@ export class App {
       this.say(`git: ${collapse(error, 160)}`);
       return;
     }
-    const paneId = await newTmuxWindow(dir, session.tool, tmuxSession);
-    if (!paneId) {
-      this.say(`worktree created, could not open tmux window: ${tildify(dir, HOME)}`);
-      return;
-    }
-    this.say(`started ${session.tool} in ${tildify(dir, HOME)} (${branch} from ${base})`);
-    await this.showPane(paneId);
-    setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
+    await this.startAgent(session.tool, dir, tmuxSession, ` (${branch} from ${base})`);
   }
 
   /** In zed mode panes stay in their own windows, so a Zed terminal attached to one keeps it. */
@@ -332,7 +350,7 @@ export class App {
         this.say("R needs a tmux session: run `agtc tmux`");
         return;
       }
-      const paneId = await newTmuxWindow(session.cwd, resumeInvocation(session), target.session);
+      const paneId = await newTmuxWindow(session.cwd, resumeInvocation(session), target.session, await checkoutName(session.cwd));
       if (!paneId) {
         this.say("could not open tmux window");
         return;
@@ -363,8 +381,8 @@ export class App {
     else this.handleListKey(key);
   }
 
-  private ask(label: string, submit: (value: string) => void): void {
-    this.ui.prompt = { label, value: "" };
+  private ask(prompt: Omit<Prompt, "value"> & { value?: string }, submit: (value: string) => void): void {
+    this.ui.prompt = { ...prompt, value: prompt.value ?? "" };
     this.onPromptSubmit = submit;
     this.draw();
   }
@@ -390,6 +408,10 @@ export class App {
         break;
       case Key.ctrlU:
         prompt.value = "";
+        break;
+      case Key.tab:
+      case Key.shiftTab:
+        cycleChoice(prompt, key === Key.tab ? 1 : -1);
         break;
       default:
         if (!isPrintable(key)) return;
@@ -506,4 +528,12 @@ export class App {
     this.clampSelection();
     this.draw();
   }
+}
+
+/** Tab walks the prompt's choices; a value typed by hand starts over from the first (or last). */
+function cycleChoice(prompt: Prompt, step: number): void {
+  const { choices, value } = prompt;
+  if (!choices?.length) return;
+  const at = choices.indexOf(value);
+  prompt.value = at < 0 && step < 0 ? choices[choices.length - 1] : choices[(at + step + choices.length) % choices.length];
 }

@@ -5,6 +5,8 @@ export const Key = {
   enter: "\r",
   backspace: "\x7f",
   backspaceAlt: "\b",
+  tab: "\t",
+  shiftTab: "\x1b[Z",
   up: "\x1b[A",
   down: "\x1b[B",
 } as const;

@@ -20,6 +20,13 @@ import {
 } from "./layout";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
+export interface Prompt {
+  label: string;
+  value: string;
+  /** Values `tab` walks through, when the answer is usually one of a known few. */
+  choices?: string[];
+}
+
 export interface UiState {
   /** Label for the enter key in the footer. */
   enterHint: string;
@@ -33,7 +40,7 @@ export interface UiState {
   /** Keys go to the search box instead of the list. */
   searchMode: boolean;
   /** A one-line question in the footer; keys go there while it is open. */
-  prompt?: { label: string; value: string };
+  prompt?: Prompt;
   /** Transient status text shown in the footer. */
   message: string;
   refreshedAt: number;
@@ -297,8 +304,12 @@ const KEY_GAP = "   ";
  */
 function renderFooter(ui: UiState, selected: Session | undefined, layout: Layout): string[] {
   if (ui.prompt) {
-    const question = `${ui.prompt.label}: ${ui.prompt.value}`;
-    const hint = truncate("   enter ok · esc cancel", Math.max(0, layout.columns - 2 - question.length));
+    const { label, value, choices } = ui.prompt;
+    const room = Math.max(0, layout.columns - 2 - label.length - 2);
+    // A long path keeps its end, the part that says which checkout it is.
+    const shown = value.length > room ? `…${value.slice(value.length - room + 1)}` : value;
+    const question = `${label}: ${shown}`;
+    const hint = truncate(choices ? "   enter ok · tab next · esc cancel" : "   enter ok · esc cancel", Math.max(0, layout.columns - 2 - question.length));
     return [` ${style(question, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`];
   }
   if (ui.searchMode) {
