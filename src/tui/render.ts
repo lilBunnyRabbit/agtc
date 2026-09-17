@@ -4,7 +4,19 @@ import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../search";
 import { type Session, type Status, STATUSES, type Tool } from "../session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
-import { AGE_WIDTH, BLANK_CELLS, DETAIL_INDENT, type Layout, type Size, STATUS_WIDTH, computeLayout, rowPrefix, rowSuffix } from "./layout";
+import {
+  AGE_WIDTH,
+  BLANK_CELLS,
+  DETAIL_INDENT,
+  type Layout,
+  MIN_TITLE_WIDTH,
+  PROMPT_AGE_WIDTH,
+  type Size,
+  STATUS_WIDTH,
+  computeLayout,
+  rowPrefix,
+  rowSuffix,
+} from "./layout";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 export interface UiState {
@@ -14,6 +26,8 @@ export interface UiState {
   selected: number;
   showInactive: boolean;
   showDetail: boolean;
+  /** The full key legend in the footer instead of the keys for the selected row. */
+  showKeys: boolean;
   query: string;
   /** Keys go to the search box instead of the list. */
   searchMode: boolean;
@@ -25,7 +39,7 @@ export interface UiState {
 }
 
 export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
-  return { enterHint, selected: 0, showInactive, showDetail: true, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
+  return { enterHint, selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
 }
 
 export interface Frame {
@@ -45,14 +59,15 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
 
   const list = renderList(visible, ui, layout);
-  const footer = renderFooter(ui, layout);
-  const chrome = HEADER_LINES + footer.length;
-  const wanted = ui.showDetail && selected ? renderDetail(selected, layout) : [];
-  const detail = size.rows - chrome - wanted.length >= MIN_LIST_LINES ? wanted : [];
-  const body = scrollWindow(list.lines, list.lineOfSelected, Math.max(MIN_LIST_LINES, size.rows - chrome - detail.length));
+  const footer = renderFooter(ui, selected, layout);
+  const room = size.rows - HEADER_LINES - footer.length;
+  const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES) : [];
+  const listHeight = Math.max(MIN_LIST_LINES, room - detail.length);
+  const body = scrollWindow(list.lines, list.lineOfSelected, listHeight);
+  const filler = Array<string>(Math.max(0, listHeight - body.length)).fill("");
 
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
-  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...detail, ...footer];
+  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible };
 }
 
@@ -164,55 +179,84 @@ function snippetLine(snippet: string, isSelected: boolean, layout: Layout): stri
   return prefix + style(`${ICON.search} ${truncate(snippet, layout.snippetWidth)}`, ANSI.yellow);
 }
 
-/** Keeps the selected line roughly centred once the list outgrows the space. */
+/** At most `height` lines, the selected one kept roughly centred once the list outgrows the space. */
 function scrollWindow(lines: string[], focusLine: number, height: number): string[] {
   const maxStart = Math.max(0, lines.length - height);
   const start = Math.min(Math.max(0, focusLine - Math.floor(height / 2)), maxStart);
-  const window = lines.slice(start, start + height);
-  while (window.length < height) window.push("");
-  return window;
+  return lines.slice(start, start + height);
 }
 
 // ---------------------------------------------------------------- detail pane
 
-function renderDetail(session: Session, layout: Layout): string[] {
-  const lines: string[] = [style(ICON.rule.repeat(layout.columns), ANSI.dim), ""];
-  const push = (text: string) => lines.push(DETAIL_INDENT + text);
+// ---------------------------------------------------------------- detail pane
 
-  push(style(truncate(session.title, layout.detailWidth), ANSI.bold, ANSI.white));
-  push(statusLine(session));
-  lines.push("");
-  push(style(truncate(tildify(session.cwd, HOME), layout.detailWidth), ANSI.dim));
-  push(checkoutLine(session) + changesSummary(session));
-  if (session.changes?.paths.length) push(style(truncate(session.changes.paths.join("  "), layout.detailWidth), ANSI.dim));
-  for (const root of session.roots.filter((r) => r !== session.root).slice(0, MAX_EXTRA_ROOTS)) {
-    push(style(truncate(`${ICON.worktree} also in ${tildify(root, HOME)}`, layout.detailWidth), ANSI.dim));
+/** Older prompts listed under the latest one when the terminal is tall enough. */
+const HISTORY_PROMPTS = 2;
+const MIN_RULE = 4;
+const SUB_INDENT = "  ";
+
+/** The detail with prompt history when it fits, without when it does not, nothing when even that would squeeze the list. */
+function fittingDetail(session: Session, layout: Layout, maxLines: number): string[] {
+  for (const history of [HISTORY_PROMPTS, 0]) {
+    const lines = renderDetail(session, layout, history);
+    if (lines.length <= maxLines) return lines;
   }
-  if (session.lastPrompt) {
-    lines.push("");
-    wrapWords(session.lastPrompt, layout.promptWidth, PROMPT_LINES).forEach((line, i) => push(`${i === 0 ? `${ICON.lastPrompt} ` : "  "}${line}`));
+  return [];
+}
+
+function renderDetail(session: Session, layout: Layout, history: number): string[] {
+  const lines = ["", detailRule(session, layout), "", DETAIL_INDENT + statusLine(session, layout), ""];
+  const push = (text: string) => lines.push(DETAIL_INDENT + text);
+  const sub = (text: string) => push(SUB_INDENT + text);
+  const subWidth = layout.detailWidth - SUB_INDENT.length;
+
+  if (session.root) {
+    push(checkoutLine(session) + changesSummary(session));
+    if (session.changes?.paths.length) wrapWords(session.changes.paths.join("  "), subWidth, 2).forEach(sub);
+    sub(style(truncate(tildify(session.cwd, HOME), subWidth), ANSI.dim));
+    for (const root of session.roots.filter((r) => r !== session.root).slice(0, MAX_EXTRA_ROOTS)) {
+      sub(style(truncate(`also in ${tildify(root, HOME)}`, subWidth), ANSI.dim));
+    }
+  } else {
+    push(style(truncate(tildify(session.cwd, HOME), layout.detailWidth), ANSI.dim));
   }
+  const prompts = promptLines(session, layout, history);
+  if (prompts.length) lines.push("", ...prompts.map((line) => DETAIL_INDENT + line));
   lines.push("");
   return lines;
 }
 
-function statusLine(session: Session): string {
+/** Title in the rule like the repo rules above; the right end names the tool and, inside tmux, the window as the status bar shows it. */
+function detailRule(session: Session, layout: Layout): string {
+  const where = session.tmux ? style(` · ${session.tmux.windowIndex}:${session.tmux.windowName}`, ANSI.dim) : "";
+  const summary = ` ${toolIcon(session.tool)} ${session.tool}${where}`;
+  const title = truncate(session.title, Math.max(MIN_TITLE_WIDTH, layout.columns - visibleLength(summary) - MIN_RULE - 3));
+  const label = ` ${title} `;
+  const rule = ICON.rule.repeat(Math.max(0, layout.columns - label.length - visibleLength(summary) - 1));
+  return style(label, ANSI.bold, ANSI.white) + style(rule, ANSI.dim) + summary;
+}
+
+/** State on the left, identity dim on the right; the right end gives way first on a narrow pane. */
+function statusLine(session: Session, layout: Layout): string {
   const blockedOn = session.status === "needs input" && session.waitingFor ? `: ${session.waitingFor}` : "";
-  const word = session.status === "done" ? "done, not seen yet" : session.status;
-  const meta = [session.pid && `pid ${session.pid}`, session.tty].filter(Boolean).map((m) => `   ${m}`).join("");
-  return (
-    style(word + blockedOn, ...statusStyle(session.status)) +
-    style(` for ${relativeAge(session.since)}`, ANSI.dim) +
-    `   ${toolIcon(session.tool)} ${session.tool}` +
-    style(meta, ANSI.dim)
-  );
+  const notSeen = session.status === "done" ? style(", not seen yet", ...statusStyle("done")) : "";
+  const left = style(session.status + blockedOn, ...statusStyle(session.status)) + style(` for ${relativeAge(session.since)}`, ANSI.dim) + notSeen;
+  const meta = [
+    session.startedAt ? `started ${relativeAge(session.startedAt)} ago` : "",
+    session.pid ? `pid ${session.pid}` : "",
+    session.tty ?? "",
+  ].filter(Boolean);
+  for (let n = meta.length; n > 0; n--) {
+    const right = meta.slice(0, n).join(" · ");
+    const gap = layout.detailWidth - visibleLength(left) - right.length;
+    if (gap >= 3) return left + " ".repeat(gap) + style(right, ANSI.dim);
+  }
+  return left;
 }
 
 function checkoutLine(session: Session): string {
-  const onBranch = session.branch ? `  on ${session.branch}` : "";
-  return session.worktree
-    ? style(`${ICON.worktree} ${session.worktree}`, ANSI.cyan) + style(onBranch, ANSI.dim)
-    : style(`${ICON.mainCheckout} main checkout${onBranch}`, ANSI.dim);
+  const onBranch = session.branch ? style(`  on ${session.branch}`, ANSI.dim) : "";
+  return session.worktree ? style(`${ICON.worktree} ${session.worktree}`, ANSI.cyan) + onBranch : `${ICON.mainCheckout} main checkout${onBranch}`;
 }
 
 /** "   3 files +120 −14   2 ahead of origin/main", or "clean" when nothing is pending. */
@@ -225,16 +269,32 @@ function changesSummary({ changes }: Session): string {
   return `   ${work}${ahead}`;
 }
 
+/** The latest prompt with its age, wrapped; up to `history` older ones dim below it, one line each. */
+function promptLines(session: Session, layout: Layout, history: number): string[] {
+  const latest = session.lastPrompt ?? session.prompts.at(-1);
+  if (!latest) return [];
+  const cut = session.lastPrompt ? session.prompts.lastIndexOf(session.lastPrompt) : -1;
+  const before = cut >= 0 ? session.prompts.slice(0, cut) : session.prompts.slice(0, -1);
+  const older = history ? before.filter((prompt) => !prompt.startsWith("/")).slice(-history).reverse() : [];
+  const age = session.lastPromptAt ? `${relativeAge(session.lastPromptAt)} ago` : "";
+  const gutter = (text: string) => `${ICON.lastPrompt} ${style(padRight(text, PROMPT_AGE_WIDTH), ANSI.dim)}  `;
+  const blank = " ".repeat(2 + PROMPT_AGE_WIDTH + 2);
+  return [
+    ...wrapWords(latest, layout.promptWidth, PROMPT_LINES).map((line, i) => (i === 0 ? gutter(age) : blank) + line),
+    ...older.map((prompt) => style(gutter("") + truncate(prompt, layout.promptWidth), ANSI.dim)),
+  ];
+}
+
 // ---------------------------------------------------------------- footer
 
-/** Key hints, cut from the right to fit; a message keeps its room first. */
 const KEY_GAP = "   ";
 
 /**
- * The key legend, wrapped so every key shows however narrow the pane; a message takes the
- * first line's place while it lasts, so the footer keeps its height and the list stays put.
+ * Key hints, wrapped so every one shows however narrow the pane: the keys that act on the
+ * selected row, or every key after `?`. A message takes the first line's place while it
+ * lasts, so the footer keeps its height and the list stays put.
  */
-function renderFooter(ui: UiState, layout: Layout): string[] {
+function renderFooter(ui: UiState, selected: Session | undefined, layout: Layout): string[] {
   if (ui.prompt) {
     const question = `${ui.prompt.label}: ${ui.prompt.value}`;
     const hint = truncate("   enter ok · esc cancel", Math.max(0, layout.columns - 2 - question.length));
@@ -245,8 +305,34 @@ function renderFooter(ui: UiState, layout: Layout): string[] {
     const hint = truncate("   type to filter · ↑↓ move · enter keep · esc clear", Math.max(0, layout.columns - 2 - prompt.length));
     return [` ${style(prompt, ANSI.yellow)}${style("▏", ANSI.bold)}${style(hint, ANSI.dim)}`];
   }
-  const keys = [
+  const keys = ui.showKeys ? allKeys(ui) : rowKeys(ui, selected);
+  const lines = wrapItems(keys, KEY_GAP, layout.columns - 1).map((line) => style(` ${line}`, ANSI.dim));
+  if (ui.message) lines[0] = ` ${style(truncate(ui.message, Math.max(0, layout.columns - 1)), ANSI.yellow)}`;
+  return lines;
+}
+
+/** What the selected row can do right now: focus or resume, mark seen only while it is "done". */
+function rowKeys(ui: UiState, session: Session | undefined): string[] {
+  const search = `/ search${ui.query ? " (esc clears)" : ""}`;
+  if (!session) return [search, "? more"];
+  const live = session.status !== "inactive";
+  return [
+    search,
+    live ? `enter ${ui.enterHint}` : "R resume in tmux",
+    ...(session.status === "done" ? ["m seen"] : []),
+    ...(live ? [] : ["c copy resume"]),
+    "o editor",
+    "v diff",
+    "n new agent",
+    "N worktree",
+    "? more",
+  ];
+}
+
+function allKeys(ui: UiState): string[] {
+  return [
     "↑↓/jk move",
+    "g/G top/bottom",
     `/ search${ui.query ? " (esc clears)" : ""}`,
     `enter ${ui.enterHint}`,
     "o editor",
@@ -256,15 +342,14 @@ function renderFooter(ui: UiState, layout: Layout): string[] {
     "R resume in tmux",
     "S restore hub",
     "m seen",
-    "M all",
-    "c resume",
+    "M all seen",
+    "c copy resume",
+    "r refresh",
     `a inactive:${onOff(ui.showInactive)}`,
     `d detail:${onOff(ui.showDetail)}`,
     "q quit",
+    "? less",
   ];
-  const lines = wrapItems(keys, KEY_GAP, layout.columns - 1).map((line) => style(` ${line}`, ANSI.dim));
-  if (ui.message) lines[0] = ` ${style(truncate(ui.message, Math.max(0, layout.columns - 1)), ANSI.yellow)}`;
-  return lines;
 }
 
 /** Greedy line fill: items joined by `gap`, a new line when the next item would not fit. */

@@ -464,6 +464,9 @@ export class App {
       case "d":
         this.ui.showDetail = !this.ui.showDetail;
         break;
+      case "?":
+        this.ui.showKeys = !this.ui.showKeys;
+        break;
       case "m":
         if (session) this.markSeen(session);
         break;

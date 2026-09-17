@@ -16,6 +16,7 @@ export const STATUS_WIDTH = "inactive".length;
 export const AGE_WIDTH = "999d".length;
 export const DETAIL_INDENT = "  ";
 export const MIN_TITLE_WIDTH = 10;
+export const PROMPT_AGE_WIDTH = "999d ago".length;
 
 const LEFT_MARGIN = " ";
 const RIGHT_MARGIN = " ";
@@ -54,7 +55,7 @@ export interface Layout extends Size {
   snippetWidth: number;
   /** Text width inside the detail pane. */
   detailWidth: number;
-  /** Prompt text width inside the detail pane, after the "↳ " marker. */
+  /** Prompt text width inside the detail pane, after the "↳ " marker and the age column. */
   promptWidth: number;
 }
 
@@ -67,7 +68,7 @@ export function computeLayout({ columns, rows }: Size): Layout {
     titleWidth: Math.max(MIN_TITLE_WIDTH, columns - PREFIX_WIDTH - SUFFIX_WIDTH - RIGHT_MARGIN.length),
     snippetWidth: columns - PREFIX_WIDTH - snippetMarker - RIGHT_MARGIN.length,
     detailWidth: columns - DETAIL_INDENT.length * 2,
-    promptWidth: columns - DETAIL_INDENT.length * 2 - promptMarker - GAP.length,
+    promptWidth: columns - DETAIL_INDENT.length * 2 - promptMarker - PROMPT_AGE_WIDTH - GAP.length,
   };
 }
 

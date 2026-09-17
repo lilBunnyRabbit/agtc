@@ -43,7 +43,7 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
 - **done** turn finished after your last prompt and you have not looked at it yet
 - **busy** working, **idle** waiting for you, **inactive** not running (recent history)
 
-Selected session gets a detail pane: working directory, worktree and branch, uncommitted changes (`3 files +120 −14   2 ahead of origin/main`, then the paths, most recently touched first), last prompt. A Claude session that created a worktree mid-way and moved into it is tracked by where it edits files, not where it started; the other checkouts it touched are listed as well.
+Selected session gets a detail pane: working directory, worktree and branch, uncommitted changes (`3 files +120 −14   2 ahead of origin/main`, then the paths, most recently touched first), the last prompt with its age and, when the terminal is tall enough, the two before it. A Claude session that created a worktree mid-way and moved into it is tracked by where it edits files, not where it started; the other checkouts it touched are listed as well.
 
 Sessions that want you, `input` and `done`, get a filled badge and a title in the same colour, and their group line counts them, so nothing waiting hides in a long list. The order is fixed: repos alphabetically, live sessions in the order they started, finished ones below them newest first. A status change recolours a row, it never moves it, and the selection stays on the session it was on.
 
@@ -64,6 +64,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
+| `?` | every key; the footer otherwise lists the keys that act on the selected session |
 | `q` | quit |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
 
