@@ -372,7 +372,7 @@ function renderFooter(ui: UiState, selected: Session | undefined, layout: Layout
 /** What the selected row can do right now: focus or resume, mark seen only while it is "done". */
 function rowKeys(ui: UiState, session: Session | undefined): string[] {
   const search = `/ search${ui.query ? " (esc clears)" : ""}`;
-  if (!session) return [search, "? more"];
+  if (!session) return [search, "? keys"];
   const live = session.status !== "inactive";
   return [
     search,
@@ -386,7 +386,7 @@ function rowKeys(ui: UiState, session: Session | undefined): string[] {
     ...(session.root ? ["P push + PR"] : []),
     "n new agent",
     "N worktree",
-    "? more",
+    "? keys",
   ];
 }
 

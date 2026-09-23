@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import type { Options } from "../cli";
 import { openInEditor } from "../editor";
+import { writeHelp } from "../help";
 import { HUB_SESSION } from "../hub";
 import { collapse, plural, tildify, untildify } from "../lib/text";
 import { copyToClipboard, run, shellQuote } from "../lib/shell";
@@ -259,6 +260,12 @@ export class App {
     this.seen.markOpened(dir, session.id);
     const command = openInEditor(session);
     this.say(command ? `opened: ${command}` : "editor not found. Set AGTC_EDITOR.");
+  }
+
+  /** `?` inside tmux: the whole key reference in a popup, paged; the footer stays as it was. */
+  private showHelp(): void {
+    const path = writeHelp();
+    void tmuxPopup(HOME, `less -R ${shellQuote(path)}`, "agtc keys").then((ok) => this.say(ok ? "" : "could not open popup"));
   }
 
   /** `v`: lazygit (or plain `git diff`) over the session's checkout, in a tmux popup. */
@@ -707,6 +714,7 @@ export class App {
         this.ui.showDetail = !this.ui.showDetail;
         break;
       case "?":
+        if (OWN_PANE) return this.showHelp();
         this.ui.showKeys = !this.ui.showKeys;
         break;
       case "m":

@@ -69,7 +69,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
-| `?` | every key; the footer otherwise lists the keys that act on the selected session |
+| `?` | the whole key reference, tmux keys and the review loop included, in a popup (`q` closes); outside tmux, the footer shows every key instead of the ones for the selected session |
 | `q` | quit |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
 | `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `j`, `k` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
