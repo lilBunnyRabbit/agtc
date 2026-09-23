@@ -51,10 +51,10 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 
 | key | action |
 | --- | --- |
-| `↑↓` `j` `k` | move |
-| `enter` | jump to that session: its Terminal.app tab, or its tmux pane (inside tmux it joins agtc's window, see below) |
-| `J` `K` | next / previous running session, selected and jumped to in one key, wrapping around |
+| `j` `k` | next / previous running session, selected and jumped to in one key, wrapping around |
 | `1`…`9` | the running session with that digit, drawn left of its row, selected and jumped to |
+| `↑↓` `J` `K` | move the selection only, inactive rows included |
+| `enter` | jump to that session: its Terminal.app tab, or its tmux pane (inside tmux it joins agtc's window, see below) |
 | `o` | open the checkout in the editor (`AGTC_EDITOR`, default `zed`) at the most recently changed file |
 | `v` | review the checkout in a tmux popup: `lazygit` if installed, else `git diff HEAD` |
 | `V` | start a read-only reviewer agent for that session's work in a new tmux window. Asks for the spec: `tab` walks the spec the session wrote (`~/.cache/agtc/specs/<id>.md`, when it exists), `ask <tool> for a spec`, its first and last prompt; or type text or a `@path`. Then which tool reviews (the other one by default). It shows as a row under the session. On a reviewer's row, `V` pastes its report into the reviewed session's input, unsent |
@@ -72,7 +72,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `?` | every key; the footer otherwise lists the keys that act on the selected session |
 | `q` | quit |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
-| `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `J`, `K` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
+| `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `j`, `k` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
 
 ## Flows
 
@@ -138,7 +138,7 @@ Run that from any terminal you like, Zed's included. Inside the hub:
 
 - `n` starts an agent in its own tmux window and shows it. It asks where first, prefilled with the selected session's checkout; `tab` cycles through every checkout in the list, or type a path. Windows are named after the checkout: `agtc`, or `agtc/feat+x` in a worktree.
 - `N` asks for a branch name, adds a worktree from the main checkout (`git worktree add -b <name> <dir> <base>`, or the existing branch when there is one, after fetching a remote base) and starts an agent there. Directory `<main checkout>/.claude/worktrees/<name>` with `/` turned into `+`, like Claude Code's own worktrees; change it with `--worktrees`.
-- `option-j` / `option-k` from any pane stage the next / previous running agent; `option-1` to `option-9` stage the one with that digit in the list. Each is a tmux root binding that selects agtc's window and types `J`, `K` or the digit into agtc, so the list moves with you. Bound only when the key is free.
+- `option-j` / `option-k` from any pane stage the next / previous running agent; `option-1` to `option-9` stage the one with that digit in the list. Each is a tmux root binding that selects agtc's window and types `j`, `k` or the digit into agtc, so the list moves with you. Bound only when the key is free.
 - `enter` moves the selected agent's pane into agtc's window as the stage; the agent that was there goes back to a window of its own. Windows keep their names. The first stage goes right of agtc, `--stage` percent wide; after that the two panes swap places, so the hub layout stays as you left it. Rearranging is tmux's job: `prefix space` flips to stacked, dragging the border resizes, `prefix z` zooms the stage to full screen. On a small screen skip `enter` and switch windows with `prefix w` or `prefix n`, then `prefix a` back to agtc.
 - `v` opens lazygit over the checkout as a popup; `q` closes it and you are back in agtc.
 - `V` starts a reviewer in a window named `<checkout> review`, read-only, with a prompt written to `~/.cache/agtc/prompts/`. agtc remembers which session it reviews, so the pairing survives restarts and `S`. `V` on the reviewer pastes its last message into the reviewed session's pane the way `agtc send` does: bracketed, nothing submitted. A reviewed session that is not in tmux, or not running, gets the report on the clipboard instead.

@@ -195,7 +195,7 @@ export class App {
     this.say(`copied: ${command}`);
   }
 
-  /** `J` / `K`: the next or previous live row, selected and staged, wrapping around. */
+  /** `j` / `k`: the next or previous live row, selected and staged, wrapping around. Arrows and `J` / `K` only move. */
   private jumpBy(step: 1 | -1): void {
     const rows = this.visible;
     if (!rows.length) return;
@@ -685,11 +685,11 @@ export class App {
         this.ui.query = "";
         this.ui.selected = 0;
         break;
-      case "j":
+      case "J":
       case Key.down:
         this.ui.selected++;
         break;
-      case "k":
+      case "K":
       case Key.up:
         this.ui.selected--;
         break;
@@ -736,9 +736,9 @@ export class App {
       case "x":
         if (session) this.closeReviewer(session);
         return;
-      case "J":
+      case "j":
         return this.jumpBy(1);
-      case "K":
+      case "k":
         return this.jumpBy(-1);
       case "n":
         if (session) this.newAgent(session);

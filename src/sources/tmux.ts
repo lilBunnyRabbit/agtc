@@ -140,8 +140,8 @@ const BACK_KEYS: [table: string, key: string][] = [
 ];
 /** Keys that drive agtc from any pane: what they type into agtc's pane. */
 const JUMP_KEYS: [key: string, agtcKey: string][] = [
-  ["M-j", "J"],
-  ["M-k", "K"],
+  ["M-j", "j"],
+  ["M-k", "k"],
   ...Array.from({ length: 9 }, (_, i): [string, string] => [`M-${i + 1}`, String(i + 1)]),
 ];
 /** A binding of ours: an earlier run's pane id (list-keys prints it quoted), or the line the README used to ask for. */
@@ -152,7 +152,7 @@ const KEY_LINE = /^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/;
  * Makes the tmux session comfortable without touching ~/.tmux.conf: mouse on for agtc's
  * session, `prefix a` / `option-a` jump back to agtc's pane, unzooming nothing, `option-j`,
  * `option-k` and `option-1` to `option-9` stage the next, previous or numbered agent from
- * any pane by typing that key into agtc, and Claude
+ * any pane by typing `j`, `k` or the digit into agtc, and Claude
  * Code keeps its 24-bit colours (it drops to 256 under TMUX unless told otherwise; tmux
  * converts for clients without RGB anyway). Runs on every start inside tmux since bindings
  * live in the server and pane ids change. A key the user bound to something else is left
