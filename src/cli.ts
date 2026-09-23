@@ -8,6 +8,8 @@ export interface Options {
   intervalMs: number;
   showInactive: boolean;
   bell: boolean;
+  /** macOS banner when a session turns done or needs input off screen. Default on. */
+  notify: boolean;
   /** Width of the stage pane next to agtc inside tmux, in percent. */
   stagePercent: number;
   /** Where `N` puts new worktrees; relative to the main checkout. Default .claude/worktrees. */
@@ -48,7 +50,8 @@ Options
   --base BRANCH        branch N starts worktrees from (default origin's default branch)
   --jump tmux|zed      enter pulls the agent next to agtc (tmux) or opens its checkout in the editor (zed)
   --inactive           start with inactive sessions shown
-  --bell               ring the terminal bell when a session finishes unseen
+  --bell               ring the terminal bell too when a session finishes or needs input unseen
+  --no-notify          no macOS notification when a session finishes or needs input off screen
   -h, --help           show this help
   -v, --version        print the version
 
@@ -57,6 +60,7 @@ Environment
   AGTC_WORKTREES       same as --worktrees
   AGTC_BASE            same as --base
   AGTC_JUMP            same as --jump
+  AGTC_NOTIFY          0 is the same as --no-notify
   AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no prefix-a / option-a bindings
   AGTC_SELECTION       selected code for agtc send
 
@@ -104,6 +108,7 @@ export function parseArgs(argv: string[]): Options {
     intervalMs: numberAfter("--interval", DEFAULT_INTERVAL_MS),
     showInactive: has("--inactive"),
     bell: has("--bell"),
+    notify: !has("--no-notify") && process.env.AGTC_NOTIFY !== "0",
     stagePercent: Math.min(95, numberAfter("--stage", DEFAULT_STAGE_PERCENT)),
     worktrees: stringAfter("--worktrees", process.env.AGTC_WORKTREES),
     base: stringAfter("--base", process.env.AGTC_BASE),

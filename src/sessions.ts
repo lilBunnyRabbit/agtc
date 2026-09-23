@@ -23,7 +23,7 @@ export async function collectSessions({ days, seen }: CollectOptions): Promise<S
   const [claude, codex] = await Promise.all([claudeSessions({ surfaces, sinceMs }), codexSessions({ surfaces, sinceMs })]);
   const withChanges = await Promise.all([...claude, ...codex].map(attachChanges));
   const linked = linkReviews(withChanges, seen);
-  const sessions = sortSessions(linked.map((session) => finalize(resolveDone(session, surfaces, seen))));
+  const sessions = sortSessions(linked.map((session) => finalize(resolveDone(onScreen(session, surfaces), seen))));
   seen.rememberHub(hubWindows(sessions));
   return sessions;
 }
@@ -53,6 +53,10 @@ function linkReviews(sessions: SessionInput[], seen: SeenStore): SessionInput[] 
   });
 }
 
+function onScreen(session: SessionInput, surfaces: Surfaces): SessionInput {
+  return { ...session, viewed: !!session.tty && !!surfaces.get(session.tty)?.viewed };
+}
+
 /** The session as it looks once you have seen its output. */
 export function asSeen(session: Session): Session {
   return session.status === "done" ? finalize({ ...session, status: "idle" }) : session;
@@ -63,11 +67,11 @@ export function asSeen(session: Session): Session {
  * Looking at it means its tab or pane is in front right now (recorded here), or it was focused
  * or marked from the TUI.
  */
-function resolveDone(session: SessionInput, surfaces: Surfaces, seen: SeenStore): SessionInput {
-  const { id, status, completedAt, lastPromptAt, tty } = session;
+function resolveDone(session: SessionInput, seen: SeenStore): SessionInput {
+  const { id, status, completedAt, lastPromptAt, viewed } = session;
   const finishedAfterPrompt = status === "idle" && !!completedAt && !!lastPromptAt && completedAt > lastPromptAt;
   if (!finishedAfterPrompt) return session;
-  if (tty && surfaces.get(tty)?.viewed) seen.mark(id);
+  if (viewed) seen.mark(id);
   return seen.seenAt(id) >= completedAt ? session : { ...session, status: "done" };
 }
 

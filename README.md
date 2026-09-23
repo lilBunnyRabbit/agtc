@@ -116,14 +116,15 @@ agtc --stage 75      width of the agent pane next to agtc inside tmux, percent (
 agtc --worktrees DIR where N creates worktrees, relative to the main checkout (default .claude/worktrees)
 agtc --base staging  branch N starts worktrees from (default origin's default branch)
 agtc --inactive      start with inactive sessions shown
-agtc --bell          ring the terminal bell when a session finishes while you are elsewhere
+agtc --bell          ring the terminal bell too when a session finishes or needs input while you are elsewhere
+agtc --no-notify     no macOS notification when a session finishes or needs input off screen
 agtc --json          print all sessions as JSON
 agtc --once          print one frame and exit
 agtc update          update this install to the newest version
 agtc --help          usage
 ```
 
-`AGTC_WORKTREES`, `AGTC_BASE` and `AGTC_JUMP` are the environment forms of `--worktrees`, `--base` and `--jump`. `AGTC_TMUX_SETUP=0` stops agtc from binding `prefix a` / `option-a`, turning the mouse on and setting `CLAUDE_CODE_TMUX_TRUECOLOR` in its tmux session. `AGTC_EDITOR` picks the editor for `o`. The default `zed` gets `--existing`: the checkout becomes its own workspace in the sidebar of the Zed window you already have open, or Zed switches to it if it is there already. This works regardless of the `cli_default_open_behavior` setting.
+`AGTC_WORKTREES`, `AGTC_BASE`, `AGTC_JUMP` and `AGTC_NOTIFY=0` are the environment forms of `--worktrees`, `--base`, `--jump` and `--no-notify`. `AGTC_TMUX_SETUP=0` stops agtc from binding `prefix a` / `option-a`, turning the mouse on and setting `CLAUDE_CODE_TMUX_TRUECOLOR` in its tmux session. `AGTC_EDITOR` picks the editor for `o`. The default `zed` gets `--existing`: the checkout becomes its own workspace in the sidebar of the Zed window you already have open, or Zed switches to it if it is there already. This works regardless of the `cli_default_open_behavior` setting.
 
 ## tmux hub
 
@@ -233,7 +234,7 @@ agtc is read-only and offline. The full footprint:
 
 - **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
 - **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
-- **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first.
+- **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first. When a poll finds a session that just turned done or needs input while its terminal is off screen, `osascript -e 'display notification …'` shows a banner with the session's title and status (`--no-notify` stops that).
 - **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's.
 - **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, the one process agtc ends, and only after its report was handed over or dropped. Nothing in agtc removes a file, a branch or a worktree.
 - **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.

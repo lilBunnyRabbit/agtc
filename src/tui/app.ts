@@ -7,13 +7,14 @@ import { writeHelp } from "../help";
 import { HUB_SESSION } from "../hub";
 import { collapse, plural, tildify, untildify } from "../lib/text";
 import { copyToClipboard, shellQuote } from "../lib/shell";
+import { notify } from "../notify";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
 import { reportMessage, reviewerReport } from "../report";
 import { restoreHub } from "../restore";
 import { resolveSpec, reviewerCommand, reviewerFor, specPath, specRequest, writeReviewPrompt } from "../review";
-import { type Session, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
+import { type Session, type Status, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
@@ -45,6 +46,8 @@ export class App {
   private sessions: Session[] = [];
   private readonly ui: UiState;
   private refreshing = false;
+  /** False until the first poll: what is done or waiting at startup is old news, not an alert. */
+  private polled = false;
   private messageTimer: ReturnType<typeof setTimeout> | undefined;
   private onPromptSubmit: ((value: string) => void) | undefined;
   private restoreOffered = false;
@@ -115,7 +118,7 @@ export class App {
     this.refreshing = true;
     try {
       const firstRunEver = this.seen.isFresh;
-      const previouslyDone = new Set(this.sessions.filter((s) => s.status === "done").map((s) => s.id));
+      const before = new Map(this.sessions.map((s) => [s.id, s.status]));
 
       let next = await collectSessions({ days: this.options.days, seen: this.seen });
       if (firstRunEver) {
@@ -134,11 +137,19 @@ export class App {
       this.draw();
       this.offerRestore();
 
-      const newlyDone = this.sessions.some((s) => s.status === "done" && !previouslyDone.has(s.id));
-      if (this.options.bell && newlyDone) this.out.write(ANSI.bell);
+      if (this.polled) this.alert(this.sessions.filter((s) => wantsYou(s.status) && before.get(s.id) !== s.status));
+      this.polled = true;
     } finally {
       this.refreshing = false;
     }
+  }
+
+  /** Sessions that just turned done or needs input: a bell for any, a banner for each one that is off screen. */
+  private alert(sessions: Session[]): void {
+    if (!sessions.length) return;
+    if (this.options.bell) this.out.write(ANSI.bell);
+    if (!this.options.notify) return;
+    for (const session of sessions) if (!session.viewed) void notify(session.title, session.status);
   }
 
   /** Once per run: the last hub had agents that are not running now, tmux is gone or fresh. */
@@ -725,6 +736,8 @@ export class App {
     this.draw();
   }
 }
+
+const wantsYou = (status: Status) => status === "done" || status === "needs input";
 
 /** Tab walks the prompt's choices; a value typed by hand starts over from the first (or last). */
 function cycleChoice(prompt: Prompt, step: number): void {

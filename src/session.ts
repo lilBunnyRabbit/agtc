@@ -55,6 +55,8 @@ export interface SessionInput {
   tty?: string;
   /** Set when the tty is a tmux pane. */
   tmux?: TmuxLocation;
+  /** Its terminal is on screen right now: the Terminal.app tab in front, or a tmux window a client shows. */
+  viewed?: boolean;
   /** Id of the session this one reviews, for a reviewer started with `V`. */
   reviewOf?: string;
 }
