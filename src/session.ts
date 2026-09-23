@@ -3,6 +3,8 @@ import type { GitChanges } from "./sources/git";
 import type { TmuxLocation } from "./sources/types";
 
 export type Tool = "claude" | "codex";
+export const TOOLS: Tool[] = ["claude", "codex"];
+export const isTool = (value: string): value is Tool => (TOOLS as string[]).includes(value);
 export type Status = "needs input" | "done" | "busy" | "idle" | "inactive";
 
 /** Display order, most urgent first. */
@@ -53,6 +55,8 @@ export interface SessionInput {
   tty?: string;
   /** Set when the tty is a tmux pane. */
   tmux?: TmuxLocation;
+  /** Id of the session this one reviews, for a reviewer started with `V`. */
+  reviewOf?: string;
 }
 
 export interface Session extends SessionInput {

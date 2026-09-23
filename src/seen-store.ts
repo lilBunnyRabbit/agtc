@@ -11,6 +11,18 @@ export interface HubWindow {
   name: string;
 }
 
+/** A reviewer started with `V` and the session it reviews. */
+export interface ReviewLink {
+  /** The reviewer's session id: known up front for Claude, learned from its pane for Codex. */
+  id?: string;
+  /** tmux pane the reviewer started in. */
+  pane: string;
+  /** The session under review. */
+  of: string;
+  /** When the reviewer started; a session in that pane from before is not it. */
+  at: number;
+}
+
 interface SeenState {
   /** session id -> when it was last looked at */
   seen: Record<string, number>;
@@ -18,7 +30,12 @@ interface SeenState {
   opened?: Record<string, string>;
   /** The agent windows tmux held when agtc last looked, for restoring after the server is gone. */
   hub?: HubWindow[];
+  reviews?: ReviewLink[];
 }
+
+const MAX_REVIEWS = 100;
+/** `ps` reports start times in whole seconds, so a reviewer may look older than the key press that started it. */
+const START_SLACK_MS = 5000;
 
 /**
  * Remembers when you last looked at each session, so a "done" session can
@@ -29,6 +46,7 @@ export class SeenStore {
   private seen: Record<string, number> = {};
   private opened: Record<string, string> = {};
   private hub: HubWindow[] = [];
+  private reviews: ReviewLink[] = [];
   private fresh = true;
 
   private constructor(private readonly path: string) {}
@@ -40,6 +58,7 @@ export class SeenStore {
       store.seen = state.seen ?? {};
       store.opened = state.opened ?? {};
       store.hub = state.hub ?? [];
+      store.reviews = state.reviews ?? [];
       store.fresh = false;
     }
     return store;
@@ -84,10 +103,34 @@ export class SeenStore {
     return this.hub;
   }
 
+  /** A link still waiting for its id in the same pane is stale: the pane was reused. */
+  rememberReview(link: ReviewLink): void {
+    this.reviews = [...this.reviews.filter((r) => r.id || r.pane !== link.pane), link].slice(-MAX_REVIEWS);
+    this.save();
+  }
+
+  /**
+   * The link a session belongs to: by id, or by pane for one whose id was not known when it
+   * started. A pane match settles the id, except for a Codex process that has no thread yet
+   * (its id is a placeholder until the first message).
+   */
+  reviewLinkOf(session: { id: string; tmux?: { paneId: string }; startedAt?: number }): ReviewLink | undefined {
+    const byId = this.reviews.find((r) => r.id === session.id);
+    if (byId) return byId;
+    const pane = session.tmux?.paneId;
+    if (!pane) return undefined;
+    const link = this.reviews.find((r) => !r.id && r.pane === pane && (session.startedAt ?? Infinity) >= r.at - START_SLACK_MS);
+    if (link && !session.id.startsWith("pid-")) {
+      link.id = session.id;
+      this.save();
+    }
+    return link;
+  }
+
   save(): void {
     try {
       mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(this.path, JSON.stringify({ seen: this.seen, opened: this.opened, hub: this.hub } satisfies SeenState));
+      writeFileSync(this.path, JSON.stringify({ seen: this.seen, opened: this.opened, hub: this.hub, reviews: this.reviews } satisfies SeenState));
       this.fresh = false;
     } catch {
       // A read-only cache dir only costs persistence, not functionality.

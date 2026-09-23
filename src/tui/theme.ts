@@ -7,6 +7,7 @@ export const ICON = {
   worktree: "⎇",
   mainCheckout: "⌂",
   search: "⌕",
+  review: "⌖",
   selection: "▌",
   lastPrompt: "↳",
   rule: "─",

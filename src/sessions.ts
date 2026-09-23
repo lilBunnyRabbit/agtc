@@ -22,7 +22,8 @@ export async function collectSessions({ days, seen }: CollectOptions): Promise<S
   const surfaces: Surfaces = new Map([...tabs, ...(await tmuxPanes(tabs))]);
   const [claude, codex] = await Promise.all([claudeSessions({ surfaces, sinceMs }), codexSessions({ surfaces, sinceMs })]);
   const withChanges = await Promise.all([...claude, ...codex].map(attachChanges));
-  const sessions = sortSessions(withChanges.map((session) => finalize(resolveDone(session, surfaces, seen))));
+  const linked = linkReviews(withChanges, seen);
+  const sessions = sortSessions(linked.map((session) => finalize(resolveDone(session, surfaces, seen))));
   seen.rememberHub(hubWindows(sessions));
   return sessions;
 }
@@ -39,6 +40,17 @@ function hubWindows(sessions: Session[]): HubWindow[] {
 async function attachChanges(session: SessionInput): Promise<SessionInput> {
   if (session.status === "inactive" || !session.root) return session;
   return { ...session, changes: await gitChanges(session.root) };
+}
+
+/** A reviewer started with `V` points at the session it reviews and is titled after it. */
+function linkReviews(sessions: SessionInput[], seen: SeenStore): SessionInput[] {
+  const byId = new Map(sessions.map((s) => [s.id, s]));
+  return sessions.map((session) => {
+    const link = seen.reviewLinkOf(session);
+    if (!link) return session;
+    const subject = byId.get(link.of);
+    return { ...session, reviewOf: link.of, title: subject ? `review of ${subject.title}` : "review" };
+  });
 }
 
 /** The session as it looks once you have seen its output. */
@@ -69,11 +81,19 @@ function finalize(session: SessionInput): Session {
  */
 function sortSessions(sessions: Session[]): Session[] {
   const inactive = (s: Session) => Number(s.status === "inactive");
-  return sessions.sort(
+  const sorted = sessions.sort(
     (a, b) =>
       a.repo.localeCompare(b.repo) ||
       inactive(a) - inactive(b) ||
       (inactive(a) ? b.since - a.since : (a.startedAt ?? 0) - (b.startedAt ?? 0) || (a.pid ?? 0) - (b.pid ?? 0)) ||
       a.id.localeCompare(b.id),
   );
+  return nestReviews(sorted);
+}
+
+/** Reviewers move to right under the session they review, keeping their order; one whose subject is not listed stays put. */
+function nestReviews(sessions: Session[]): Session[] {
+  const ids = new Set(sessions.map((s) => s.id));
+  const under = (id: string) => sessions.filter((s) => s.reviewOf === id);
+  return sessions.flatMap((s) => (s.reviewOf ? (ids.has(s.reviewOf) ? [] : [s]) : [s, ...under(s.id)]));
 }

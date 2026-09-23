@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import type { Options } from "../cli";
@@ -9,7 +10,8 @@ import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
 import { restoreHub } from "../restore";
-import { type Session, type Tool, resumeCommand, resumeInvocation, workDir } from "../session";
+import { reviewerCommand, reviewerFor, writeReviewPrompt } from "../review";
+import { type Session, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
@@ -23,6 +25,18 @@ const MESSAGE_TTL_MS = 3000;
 const DEFAULT_WORKTREES_DIR = join(".claude", "worktrees");
 /** A freshly started agent registers itself within this long. */
 const NEW_AGENT_REFRESH_MS = 1500;
+
+interface Launch {
+  tool: Tool;
+  dir: string;
+  tmuxSession: string | undefined;
+  /** What to type into the new window's shell. Default: the bare tool. */
+  command?: string;
+  /** Window name. Default: the checkout's name. */
+  name?: string;
+  /** Appended to the "started" message. */
+  note?: string;
+}
 
 /** The interactive dashboard: polls sources, draws frames, reacts to keys. */
 export class App {
@@ -250,9 +264,62 @@ export class App {
           this.say(`no such directory: ${tildify(dir, HOME)}`);
           return;
         }
-        void this.startAgent(session.tool, dir, target.session);
+        void this.startAgent({ tool: session.tool, dir, tmuxSession: target.session });
       });
     });
+  }
+
+  /**
+   * `V`: a second agent reads the session's work against its spec and reports, read-only. Its
+   * process is fresh, so the author's reasoning never reaches it; the other tool by default,
+   * so not even memory does.
+   */
+  private startReviewer(session: Session): void {
+    if (session.reviewOf) {
+      this.say("this is a reviewer: V on the session it reviews starts another");
+      return;
+    }
+    const running = this.sessions.find((s) => s.reviewOf === session.id && s.status !== "inactive");
+    if (running) {
+      this.say(`${running.tool} is still reviewing this: quit it first`);
+      return;
+    }
+    const dir = this.existingWorkDir(session);
+    if (!dir) return;
+    void this.tmuxTarget(session).then((target) => {
+      if (!target) {
+        this.say("V needs a tmux session: run `agtc tmux`");
+        return;
+      }
+      const specs = [...new Set([session.firstPrompt, session.lastPrompt].filter((p): p is string => !!p && !p.startsWith("/")))];
+      this.ask({ label: "spec (or @file)", value: specs[0], choices: specs }, (spec) => {
+        if (!spec.trim()) return;
+        const tools = [reviewerFor(session.tool), session.tool];
+        this.ask({ label: "reviewer", value: tools[0], choices: tools }, (tool) => {
+          if (!isTool(tool)) {
+            this.say(`unknown tool: ${tool}`);
+            return;
+          }
+          void this.launchReviewer(session, dir, spec.trim(), tool, target.session);
+        });
+      });
+    });
+  }
+
+  private async launchReviewer(session: Session, dir: string, spec: string, tool: Tool, tmuxSession: string | undefined): Promise<void> {
+    const id = randomUUID();
+    const base = session.changes?.base ?? (await baseBranch(dir));
+    const promptPath = writeReviewPrompt(id, { spec, base });
+    const paneId = await this.startAgent({
+      tool,
+      dir,
+      tmuxSession,
+      command: reviewerCommand(tool, id, promptPath),
+      name: `${await checkoutName(dir)} review`,
+      note: ` to review "${collapse(session.title, 40)}"`,
+    });
+    if (!paneId) return;
+    this.seen.rememberReview({ id: tool === "claude" ? id : undefined, pane: paneId, of: session.id, at: Date.now() });
   }
 
   /** Every checkout the list knows: the session's own, the rest of its repository, then the other repositories. */
@@ -266,15 +333,17 @@ export class App {
     return [...dirs].filter((dir) => existsSync(dir));
   }
 
-  private async startAgent(tool: Tool, dir: string, tmuxSession: string | undefined, note = ""): Promise<void> {
-    const paneId = await newTmuxWindow(dir, tool, tmuxSession, await checkoutName(dir));
+  /** Opens a tmux window in `dir` running `command` (the bare tool by default) and shows it. Returns the pane id. */
+  private async startAgent({ tool, dir, tmuxSession, command = tool, name, note = "" }: Launch): Promise<string | undefined> {
+    const paneId = await newTmuxWindow(dir, command, tmuxSession, name ?? (await checkoutName(dir)));
     if (!paneId) {
       this.say(`could not open tmux window in ${tildify(dir, HOME)}`);
-      return;
+      return undefined;
     }
     this.say(`started ${tool} in ${tildify(dir, HOME)}${note}`);
     await this.showPane(paneId);
     setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
+    return paneId;
   }
 
   /**
@@ -314,7 +383,7 @@ export class App {
       this.say(`git: ${collapse(error, 160)}`);
       return;
     }
-    await this.startAgent(session.tool, dir, tmuxSession, ` (${branch} from ${base})`);
+    await this.startAgent({ tool: session.tool, dir, tmuxSession, note: ` (${branch} from ${base})` });
   }
 
   /** In zed mode panes stay in their own windows, so a Zed terminal attached to one keeps it. */
@@ -506,6 +575,9 @@ export class App {
         return;
       case "v":
         if (session) this.review(session);
+        return;
+      case "V":
+        if (session) this.startReviewer(session);
         return;
       case "n":
         if (session) this.newAgent(session);

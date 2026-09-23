@@ -65,11 +65,12 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const layout = computeLayout(size);
   const visible = filterSessions(sessions, ui);
   const selected = visible[ui.selected];
+  const reviews: Reviews = { reviewerOf: liveReviewers(sessions), subjectOf: new Map(sessions.map((s) => [s.id, s])) };
 
-  const list = renderList(visible, ui, layout);
+  const list = renderList(visible, ui, layout, reviews);
   const footer = renderFooter(ui, selected, layout);
   const room = size.rows - HEADER_LINES - footer.length;
-  const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES) : [];
+  const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
   const listHeight = Math.max(MIN_LIST_LINES, room - detail.length);
   const body = scrollWindow(list.lines, list.lineOfSelected, listHeight);
   const filler = Array<string>(Math.max(0, listHeight - body.length)).fill("");
@@ -77,6 +78,20 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
   const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible };
+}
+
+/** Who reviews whom, for the marker on a reviewed row and the lines in the detail pane. */
+interface Reviews {
+  /** The running reviewer of a session, by the reviewed session's id. */
+  reviewerOf: Map<string, Session>;
+  /** Every session by id, to name what a reviewer reviews. */
+  subjectOf: Map<string, Session>;
+}
+
+function liveReviewers(sessions: Session[]): Map<string, Session> {
+  const map = new Map<string, Session>();
+  for (const s of sessions) if (s.reviewOf && s.status !== "inactive" && !map.has(s.reviewOf)) map.set(s.reviewOf, s);
+  return map;
 }
 
 // ---------------------------------------------------------------- header
@@ -117,7 +132,7 @@ interface RenderedList {
 }
 
 /** One line per session, grouped under a rule per repo. */
-function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedList {
+function renderList(visible: Session[], ui: UiState, layout: Layout, reviews: Reviews): RenderedList {
   const lines: string[] = [];
   let lineOfSelected = 0;
   let currentRepo: string | undefined;
@@ -130,7 +145,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    lines.push(sessionLine(session, isSelected, layout));
+    lines.push(sessionLine(session, isSelected, layout, reviews.reviewerOf.get(session.id)));
     const snippet = matchSnippet(session, ui.query);
     if (snippet) lines.push(snippetLine(snippet, isSelected, layout));
   });
@@ -158,9 +173,12 @@ function selectionBar(isSelected: boolean): string {
   return isSelected ? style(ICON.selection, ANSI.cyan) : " ";
 }
 
-function sessionLine(session: Session, isSelected: boolean, layout: Layout): string {
+/** A reviewer's row is indented under its subject; a reviewed row ends in a marker in the reviewer's colour. */
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, reviewer: Session | undefined): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
+  const nested = session.reviewOf ? style(`${SUB_INDENT}${ICON.review} `, inactive ? ANSI.dim : ANSI.cyan) : "";
+  const marker = reviewer ? ` ${style(ICON.review, ...statusStyle(reviewer.status))}` : "";
   const prefix = rowPrefix({
     bar: selectionBar(isSelected),
     worktree: session.worktree ? worktreeIcon(inactive) : " ",
@@ -169,7 +187,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout): str
       ? style(padRight(` ${STATUS_LABEL[session.status]}`, STATUS_WIDTH), ...statusStyle(session.status), ANSI.reverse)
       : style(padRight(STATUS_LABEL[session.status], STATUS_WIDTH), ...statusStyle(session.status)),
   });
-  const title = padRight(session.title, layout.titleWidth);
+  const title = padRight(session.title, layout.titleWidth - visibleLength(nested) - visibleLength(marker));
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
@@ -178,7 +196,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout): str
         ? style(title, ...statusStyle(session.status))
         : title;
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + styledTitle + rowSuffix(age);
+  return prefix + nested + styledTitle + marker + rowSuffix(age);
 }
 
 /** Shows where an older prompt matched the search, aligned under the title. */
@@ -204,15 +222,15 @@ const MIN_RULE = 4;
 const SUB_INDENT = "  ";
 
 /** The detail with prompt history when it fits, without when it does not, nothing when even that would squeeze the list. */
-function fittingDetail(session: Session, layout: Layout, maxLines: number): string[] {
+function fittingDetail(session: Session, layout: Layout, maxLines: number, reviews: Reviews): string[] {
   for (const history of [HISTORY_PROMPTS, 0]) {
-    const lines = renderDetail(session, layout, history);
+    const lines = renderDetail(session, layout, history, reviews);
     if (lines.length <= maxLines) return lines;
   }
   return [];
 }
 
-function renderDetail(session: Session, layout: Layout, history: number): string[] {
+function renderDetail(session: Session, layout: Layout, history: number, reviews: Reviews): string[] {
   const lines = ["", detailRule(session, layout), "", DETAIL_INDENT + statusLine(session, layout), ""];
   const push = (text: string) => lines.push(DETAIL_INDENT + text);
   const sub = (text: string) => push(SUB_INDENT + text);
@@ -228,6 +246,8 @@ function renderDetail(session: Session, layout: Layout, history: number): string
   } else {
     push(style(truncate(tildify(session.cwd, HOME), layout.detailWidth), ANSI.dim));
   }
+  const review = reviewLine(session, reviews, layout.detailWidth);
+  if (review) lines.push("", DETAIL_INDENT + review);
   const prompts = promptLines(session, layout, history);
   if (prompts.length) lines.push("", ...prompts.map((line) => DETAIL_INDENT + line));
   lines.push("");
@@ -260,6 +280,19 @@ function statusLine(session: Session, layout: Layout): string {
     if (gap >= 3) return left + " ".repeat(gap) + style(right, ANSI.dim);
   }
   return left;
+}
+
+/** What a reviewer reviews, or the state of the reviewer a session has. */
+function reviewLine(session: Session, { reviewerOf, subjectOf }: Reviews, width: number): string | undefined {
+  if (session.reviewOf) {
+    const subject = subjectOf.get(session.reviewOf);
+    const state = subject ? style(`  ${subject.status}`, ...statusStyle(subject.status)) : "";
+    return style(`${ICON.review} reviews `, ANSI.cyan) + truncate(subject?.title ?? session.reviewOf, Math.max(0, width - 10 - visibleLength(state))) + state;
+  }
+  const reviewer = reviewerOf.get(session.id);
+  if (!reviewer) return undefined;
+  const state = style(`${reviewer.status} for ${relativeAge(reviewer.since)}`, ...statusStyle(reviewer.status));
+  return style(`${ICON.review} reviewer `, ANSI.cyan) + `${toolIcon(reviewer.tool)} ${reviewer.tool}  ` + state;
 }
 
 function checkoutLine(session: Session): string {
@@ -335,6 +368,7 @@ function rowKeys(ui: UiState, session: Session | undefined): string[] {
     ...(live ? [] : ["c copy resume"]),
     "o editor",
     "v diff",
+    ...(session.reviewOf ? [] : ["V review agent"]),
     "n new agent",
     "N worktree",
     "? more",
@@ -349,6 +383,7 @@ function allKeys(ui: UiState): string[] {
     `enter ${ui.enterHint}`,
     "o editor",
     "v diff",
+    "V review agent",
     "n new agent",
     "N new worktree",
     "R resume in tmux",
