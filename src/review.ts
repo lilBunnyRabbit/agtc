@@ -1,7 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { shellQuote } from "./lib/shell";
-import { PROMPTS_DIR } from "./paths";
+import { untildify } from "./lib/text";
+import { HOME, PROMPTS_DIR, SPECS_DIR } from "./paths";
 import type { Tool } from "./session";
 
 export interface ReviewRequest {
@@ -9,6 +10,24 @@ export interface ReviewRequest {
   spec: string;
   /** Branch the work will merge into; the diff is taken against it. */
   base?: string;
+}
+
+export const specPath = (sessionId: string) => join(SPECS_DIR, `${sessionId}.md`);
+
+/** What the author is asked to write, for a reader who sees only the code. */
+export function specRequest(path: string): string {
+  mkdirSync(SPECS_DIR, { recursive: true });
+  return `Write the spec for the work in this session to ${path}. It is for a reviewer who sees only the code, not this conversation: what was asked, what the result must do, constraints, what is explicitly out of scope. Facts only, no implementation notes, no reasoning. Under 40 lines. Reply with just the path when done.\n`;
+}
+
+/** The spec behind a prompt answer: a file's content when the answer is a path, with or without a leading @, else the answer itself. */
+export function resolveSpec(answer: string): string | undefined {
+  const value = answer.trim();
+  try {
+    return readFileSync(untildify(value.replace(/^@/, ""), HOME), "utf8").trim() || undefined;
+  } catch {
+    return value || undefined;
+  }
 }
 
 /** Tools a Claude reviewer may use without asking. Everything that writes is disallowed outright. */

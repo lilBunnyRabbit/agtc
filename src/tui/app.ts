@@ -11,7 +11,7 @@ import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
 import { reportMessage, reviewerReport } from "../report";
 import { restoreHub } from "../restore";
-import { reviewerCommand, reviewerFor, writeReviewPrompt } from "../review";
+import { resolveSpec, reviewerCommand, reviewerFor, specPath, specRequest, writeReviewPrompt } from "../review";
 import { type Session, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
@@ -288,19 +288,47 @@ export class App {
         this.say("V needs a tmux session: run `agtc tmux`");
         return;
       }
-      const specs = [...new Set([session.firstPrompt, session.lastPrompt].filter((p): p is string => !!p && !p.startsWith("/")))];
-      this.ask({ label: "spec (or @file)", value: specs[0], choices: specs }, (spec) => {
-        if (!spec.trim()) return;
+      const written = specPath(session.id);
+      const askAuthor = `ask ${session.tool} for a spec`;
+      const prompts = [session.firstPrompt, session.lastPrompt].filter((p): p is string => !!p && !p.startsWith("/"));
+      const choices = [...new Set([...(existsSync(written) ? [tildify(written, HOME)] : []), askAuthor, ...prompts])];
+      this.ask({ label: "spec (text, @file)", value: choices[0], choices }, (answer) => {
+        if (answer.trim() === askAuthor) return this.requestSpec(session, written);
+        const spec = resolveSpec(answer);
+        if (!spec) return;
         const tools = [reviewerFor(session.tool), session.tool];
         this.ask({ label: "reviewer", value: tools[0], choices: tools }, (tool) => {
           if (!isTool(tool)) {
             this.say(`unknown tool: ${tool}`);
             return;
           }
-          void this.launchReviewer(session, dir, spec.trim(), tool, target.session);
+          void this.launchReviewer(session, dir, spec, tool, target.session);
         });
       });
     });
+  }
+
+  /** The author knows what was built: the request for a spec lands in its input, you send it, `V` again once the file exists. */
+  private requestSpec(session: Session, path: string): void {
+    void this.handTo(session, specRequest(path)).then((where) => {
+      if (where === "pane") this.say(`spec request in "${collapse(session.title, 40)}": enter there, then V again`);
+      else if (where === "clipboard") this.say(session.status === "inactive" ? "spec request copied: R resumes the session, paste it there" : "spec request copied: the session runs outside tmux, paste it there");
+    });
+  }
+
+  /** Puts text into a session's input, unsent, and shows the session. One the paste cannot reach gets it on the clipboard. */
+  private async handTo(session: Session, text: string): Promise<"pane" | "clipboard" | undefined> {
+    if (session.status === "inactive" || !session.tmux) {
+      copyToClipboard(text);
+      return "clipboard";
+    }
+    const { paneId } = session.tmux;
+    if (!(await pasteIntoPane(paneId, text))) {
+      this.say(`could not paste into tmux pane ${paneId}`);
+      return undefined;
+    }
+    await this.showPane(paneId);
+    return "pane";
   }
 
   private async launchReviewer(session: Session, dir: string, spec: string, tool: Tool, tmuxSession: string | undefined): Promise<void> {
@@ -342,21 +370,10 @@ export class App {
       this.say("no report yet: the reviewer has not finished a turn");
       return;
     }
-    const text = reportMessage(reviewer, report);
     this.markSeen(reviewer);
-    if (subject.status === "inactive" || !subject.tmux) {
-      copyToClipboard(text);
-      this.say(subject.status === "inactive" ? "report copied: R resumes the session, then paste" : `report copied: "${collapse(subject.title, 40)}" runs outside tmux, paste it there`);
-      return;
-    }
-    const { paneId } = subject.tmux;
-    void pasteIntoPane(paneId, text).then(async (ok) => {
-      if (!ok) {
-        this.say(`could not paste into tmux pane ${paneId}`);
-        return;
-      }
-      this.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
-      await this.showPane(paneId);
+    void this.handTo(subject, reportMessage(reviewer, report)).then((where) => {
+      if (where === "pane") this.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
+      else if (where === "clipboard") this.say(subject.status === "inactive" ? "report copied: R resumes the session, then paste" : `report copied: "${collapse(subject.title, 40)}" runs outside tmux, paste it there`);
     });
   }
 
