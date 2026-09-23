@@ -33,9 +33,9 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
  agtc   ✳ 11  ⬡ 1     needs input 0   done 1   busy 2   idle 8   inactive 5
 
  acme-platform ───────────────────────────────────────── 10 sessions
- ▌     ✳  done      Labs page top safe padding                      2m
-   ⎇   ✳  busy      Study path header overflow iOS                  5m
-       ⬡  idle      Does our voice orb allow styling                1h
+ ▌     ✳  done      Settings page safe padding                      2m
+   ⎇   ✳  busy      Sidebar header overflow on iOS                  5m
+       ⬡  idle      Can the chart legend be restyled                1h
 ```
 
 - `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews
