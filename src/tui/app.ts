@@ -265,7 +265,8 @@ export class App {
   /** `?` inside tmux: the whole key reference in a popup, paged; the footer stays as it was. */
   private showHelp(): void {
     const path = writeHelp();
-    void tmuxPopup(HOME, `less -R ${shellQuote(path)}`, "agtc keys").then((ok) => this.say(ok ? "" : "could not open popup"));
+    const pager = `less -R -K -~ -Ps${shellQuote(" ↑↓ scroll · q closes ")} ${shellQuote(path)}`;
+    void tmuxPopup(HOME, pager, "agtc keys · q closes").then((ok) => this.say(ok ? "" : "could not open popup"));
   }
 
   /** `v`: lazygit (or plain `git diff`) over the session's checkout, in a tmux popup. */

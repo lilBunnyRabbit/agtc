@@ -3,18 +3,39 @@ import { dirname } from "node:path";
 import pkg from "../package.json";
 import { padRight } from "./lib/text";
 import { HELP_FILE } from "./paths";
-import { ANSI, style } from "./tui/ansi";
+import { STATUSES, type Status } from "./session";
+import { ANSI, stripAnsi, style, visibleLength } from "./tui/ansi";
+import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./tui/theme";
 
 const KEY_WIDTH = 20;
 
 const heading = (text: string) => style(text, ANSI.bold, ANSI.cyan);
-const key = (keys: string, what: string, also = "") => `  ${style(padRight(keys, KEY_WIDTH), ANSI.bold)}${what}${also ? style(`   ${also}`, ANSI.dim) : ""}`;
+const k = (text: string) => style(text, ANSI.bold, ANSI.yellow);
+/** Key column in yellow unless it brings its own colours (a glyph, a badge); padding counts visible columns. */
+const key = (keys: string, what: string, also = "") =>
+  `  ${keys === stripAnsi(keys) ? k(keys) : keys}${" ".repeat(Math.max(1, KEY_WIDTH - visibleLength(keys)))}${what}${also ? style(`   ${also}`, ANSI.dim) : ""}`;
 const note = (text: string) => `  ${style(text, ANSI.dim)}`;
+const child = style(ICON.child, ANSI.cyan);
+const onReview = (keys: string) => `${k(`${keys} on `)}${child}${k(" review")}`;
+
+/** A status as the list draws it: filled badge when it wants you, plain colour otherwise. */
+function badge(status: Status): string {
+  const label = STATUS_LABEL[status];
+  return needsAttention(status) ? style(` ${label} `, ...statusStyle(status), ANSI.reverse) : style(label, ...statusStyle(status));
+}
+
+const STATUS_MEANING: Record<Status, string> = {
+  "needs input": "blocked on a permission or dialog",
+  done: "turn finished after your last prompt, output not looked at yet",
+  busy: "working",
+  idle: "waiting for you, output already seen",
+  inactive: "not running; a shows them, R resumes one",
+};
 
 /** The whole key reference, for the `?` popup. Sections follow what you are doing, not the keyboard. */
 export function helpText(): string {
   return [
-    `${style("agtc", ANSI.bold)} ${style(pkg.version, ANSI.dim)}   ${style("keys", ANSI.bold)}${style("   q closes this", ANSI.dim)}`,
+    `${style("agtc", ANSI.bold)} ${style(pkg.version, ANSI.dim)}   ${style("keys", ANSI.bold)}${style("   q or ctrl-c closes this, ↑↓ scroll", ANSI.dim)}`,
     "",
     heading("Move between agents"),
     key("J / K", "the running session above / below, selected and staged", "option-j / option-k from any pane"),
@@ -44,20 +65,17 @@ export function helpText(): string {
     "",
     heading("Review loop"),
     key("V", "start a read-only reviewer. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),
-    key("V on ╰ review", "paste the reviewer's report into the reviewed session's input, unsent; read it there, then enter"),
-    key("enter on ╰ review", "see what it says, answer its questions"),
-    key("x on ╰ review", "close it", "refused while its report is unread: V or m first"),
+    key(onReview("V"), "paste the reviewer's report into the reviewed session's input, unsent; read it there, then enter"),
+    key(onReview("enter"), "see what it says, answer its questions"),
+    key(onReview("x"), "close it", "refused while its report is unread: V or m first"),
     key("P", "push the branch and open its pull request, existing or new", "refused: dirty tree, base branch, detached HEAD, reviewer mid-turn"),
-    note("One round: V, ask for a spec, enter in the agent, V again, pick the tool, wait, V on ╰ review, enter in the agent. Then v to commit, P to ship."),
+    note(`One round: V, ask for a spec, enter in the agent, V again, pick the tool, wait, V on ${ICON.child} review, enter in the agent. Then v to commit, P to ship.`),
     "",
     heading("Rows"),
-    key("✳  ⬡", "Claude Code, Codex"),
-    key("⎇", "the session lives in a git worktree"),
-    key("╰ review", "a reviewer of the row above; its digit stages it like any other"),
-    key("input", "blocked on a permission or dialog"),
-    key("done", "turn finished after your last prompt, output not looked at yet"),
-    key("busy / idle", "working / waiting for you"),
-    key("inactive", "not running; a to show, R to resume"),
+    key(`${toolIcon("claude")}  ${toolIcon("codex")}`, "Claude Code, Codex"),
+    key(worktreeIcon(), "the session lives in a git worktree"),
+    key(`${child}${k(" review")}`, "a reviewer of the row above; its digit stages it like any other"),
+    ...STATUSES.map((status) => key(badge(status), STATUS_MEANING[status])),
     "",
     heading("tmux"),
     key("prefix z", "zoom the stage to the whole window, again to unzoom"),
