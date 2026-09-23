@@ -144,8 +144,8 @@ const JUMP_KEYS: [key: string, agtcKey: string][] = [
   ["M-k", "K"],
   ...Array.from({ length: 9 }, (_, i): [string, string] => [`M-${i + 1}`, String(i + 1)]),
 ];
-/** A binding of ours: an earlier run's pane id, or the line the README used to ask for. */
-const OUR_BINDING = /(select-pane -Z -t (%\d+|hub\.0)|send-keys -t %\d+ \S+)$/;
+/** A binding of ours: an earlier run's pane id (list-keys prints it quoted), or the line the README used to ask for. */
+const OUR_BINDING = /(select-pane -Z -t "?(%\d+|hub\.0)"?|send-keys -t "?%\d+"? \S+)$/;
 const KEY_LINE = /^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/;
 
 /**
