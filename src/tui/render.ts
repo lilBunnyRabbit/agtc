@@ -57,6 +57,8 @@ export interface Frame {
 }
 
 const HEADER_LINES = 2; // header + blank line
+/** How many live rows get a digit: one key each. */
+const JUMP_KEYS = 9;
 const MIN_LIST_LINES = 3;
 const PROMPT_LINES = 2;
 const MAX_EXTRA_ROOTS = 2;
@@ -78,6 +80,11 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
   const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible };
+}
+
+/** The live sessions the digit keys stage, in list order: row 1 is the first live row on screen. */
+export function jumpTargets(visible: Session[]): Session[] {
+  return visible.filter((s) => s.status !== "inactive").slice(0, JUMP_KEYS);
 }
 
 /** Who reviews whom, for the marker on a reviewed row and the lines in the detail pane. */
@@ -136,6 +143,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
   const lines: string[] = [];
   let lineOfSelected = 0;
   let currentRepo: string | undefined;
+  const digits = new Map(jumpTargets(visible).map((s, i) => [s.id, String(i + 1)]));
 
   visible.forEach((session, index) => {
     if (session.repo !== currentRepo) {
@@ -145,7 +153,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    lines.push(sessionLine(session, isSelected, layout, visible[index - 1]));
+    lines.push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id)));
     const snippet = matchSnippet(session, ui.query);
     if (snippet) lines.push(snippetLine(snippet, isSelected, layout));
   });
@@ -177,7 +185,7 @@ function selectionBar(isSelected: boolean): string {
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
  */
-function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined): string {
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
   const nested = !!session.reviewOf;
@@ -185,6 +193,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
   const branch = nested ? `${style(ICON.child, inactive ? ANSI.dim : ANSI.cyan)} ` : "";
   const prefix = rowPrefix({
     bar: selectionBar(isSelected),
+    jump: digit ? style(digit, isSelected ? ANSI.cyan : ANSI.dim) : " ",
     worktree: session.worktree && !nested ? worktreeIcon(inactive) : " ",
     tool: toolIcon(session.tool, inactive),
     status: attention
@@ -385,6 +394,8 @@ function allKeys(ui: UiState): string[] {
   return [
     "↑↓/jk move",
     "g/G top/bottom",
+    "J/K stage next/prev",
+    "1-9 stage that row",
     `/ search${ui.query ? " (esc clears)" : ""}`,
     `enter ${ui.enterHint}`,
     "o editor",

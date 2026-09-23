@@ -3,11 +3,12 @@ import { visibleLength } from "./ansi";
 /*
  * One list row:
  *
- *    ▌ ⎇  ✳  idle      Title of the session ...................  19h
- *   │ │ │  │  │         │                                        │
- *   │ │ │  │  status    title (fills the rest)                   age
- *   │ │ │  tool icon
- *   │ │ worktree icon
+ *    ▌ 3 ⎇  ✳  idle      Title of the session ...................  19h
+ *   │ │ │ │  │  │         │                                        │
+ *   │ │ │ │  │  status    title (fills the rest)                   age
+ *   │ │ │ │  tool icon
+ *   │ │ │ worktree icon
+ *   │ │ jump digit: the key that stages this session, live rows 1-9
  *   │ selection bar
  *   left margin
  */
@@ -24,6 +25,7 @@ const GAP = "  ";
 
 export interface RowCells {
   bar: string;
+  jump: string;
   worktree: string;
   tool: string;
   /** Already padded to STATUS_WIDTH. */
@@ -31,15 +33,15 @@ export interface RowCells {
 }
 
 /** Everything left of the title. Glyph cells are one column wide; styling is allowed. */
-export function rowPrefix({ bar, worktree, tool, status }: RowCells): string {
-  return `${LEFT_MARGIN}${bar} ${worktree}${GAP}${tool}${GAP}${status}${GAP}`;
+export function rowPrefix({ bar, jump, worktree, tool, status }: RowCells): string {
+  return `${LEFT_MARGIN}${bar} ${jump} ${worktree}${GAP}${tool}${GAP}${status}${GAP}`;
 }
 
 export function rowSuffix(age: string): string {
   return `${GAP}${age}`;
 }
 
-export const BLANK_CELLS: RowCells = { bar: " ", worktree: " ", tool: " ", status: " ".repeat(STATUS_WIDTH) };
+export const BLANK_CELLS: RowCells = { bar: " ", jump: " ", worktree: " ", tool: " ", status: " ".repeat(STATUS_WIDTH) };
 
 const PREFIX_WIDTH = visibleLength(rowPrefix(BLANK_CELLS));
 const SUFFIX_WIDTH = visibleLength(rowSuffix(" ".repeat(AGE_WIDTH)));

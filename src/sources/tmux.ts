@@ -138,13 +138,21 @@ const BACK_KEYS: [table: string, key: string][] = [
   ["prefix", "a"],
   ["root", "M-a"],
 ];
+/** Keys that drive agtc from any pane: what they type into agtc's pane. */
+const JUMP_KEYS: [key: string, agtcKey: string][] = [
+  ["M-j", "J"],
+  ["M-k", "K"],
+  ...Array.from({ length: 9 }, (_, i): [string, string] => [`M-${i + 1}`, String(i + 1)]),
+];
 /** A binding of ours: an earlier run's pane id, or the line the README used to ask for. */
-const OUR_BINDING = /select-pane -Z -t (%\d+|hub\.0)$/;
+const OUR_BINDING = /(select-pane -Z -t (%\d+|hub\.0)|send-keys -t %\d+ \S+)$/;
 const KEY_LINE = /^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/;
 
 /**
  * Makes the tmux session comfortable without touching ~/.tmux.conf: mouse on for agtc's
- * session, `prefix a` / `option-a` jump back to agtc's pane, unzooming nothing, and Claude
+ * session, `prefix a` / `option-a` jump back to agtc's pane, unzooming nothing, `option-j`,
+ * `option-k` and `option-1` to `option-9` stage the next, previous or numbered agent from
+ * any pane by typing that key into agtc, and Claude
  * Code keeps its 24-bit colours (it drops to 256 under TMUX unless told otherwise; tmux
  * converts for clients without RGB anyway). Runs on every start inside tmux since bindings
  * live in the server and pane ids change. A key the user bound to something else is left
@@ -156,10 +164,14 @@ export async function setupTmux(ownPane: string): Promise<void> {
   await succeeds(["tmux", "set-environment", "-t", ownPane, "CLAUDE_CODE_TMUX_TRUECOLOR", "1"]);
   // One argument: tmux parses the string itself, an argv `;` would end the bind-key command instead.
   const back = `select-window -t ${ownPane} ; select-pane -Z -t ${ownPane}`;
-  for (const [table, key] of BACK_KEYS) {
+  const bindings: [table: string, key: string, command: string][] = [
+    ...BACK_KEYS.map(([table, key]): [string, string, string] => [table, key, back]),
+    ...JUMP_KEYS.map(([key, agtcKey]): [string, string, string] => ["root", key, `select-window -t ${ownPane} ; send-keys -t ${ownPane} ${agtcKey}`]),
+  ];
+  for (const [table, key, command] of bindings) {
     const bound = await boundCommand(table, key);
     if (bound && !OUR_BINDING.test(bound)) continue;
-    await succeeds(["tmux", "bind-key", "-T", table, key, back]);
+    await succeeds(["tmux", "bind-key", "-T", table, key, command]);
   }
 }
 

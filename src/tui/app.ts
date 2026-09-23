@@ -20,7 +20,7 @@ import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupT
 import { ANSI } from "./ansi";
 import { Key, isPrintable, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
-import { type Prompt, type UiState, initialUiState, renderFrame } from "./render";
+import { type Prompt, type UiState, initialUiState, jumpTargets, renderFrame } from "./render";
 
 const MESSAGE_TTL_MS = 3000;
 const DEFAULT_WORKTREES_DIR = join(".claude", "worktrees");
@@ -193,6 +193,33 @@ export class App {
     const command = resumeCommand(session);
     copyToClipboard(command);
     this.say(`copied: ${command}`);
+  }
+
+  /** `J` / `K`: the next or previous live row, selected and staged, wrapping around. */
+  private jumpBy(step: 1 | -1): void {
+    const rows = this.visible;
+    if (!rows.length) return;
+    for (let n = 1; n <= rows.length; n++) {
+      const index = (this.ui.selected + step * n + rows.length * n) % rows.length;
+      if (rows[index].status === "inactive") continue;
+      this.ui.selected = index;
+      this.draw();
+      this.focus(rows[index]);
+      return;
+    }
+    this.say("nothing running");
+  }
+
+  /** `1`-`9`: the live row with that digit, selected and staged. */
+  private jumpTo(digit: number): void {
+    const target = jumpTargets(this.visible)[digit - 1];
+    if (!target) {
+      this.say(`no row ${digit}`);
+      return;
+    }
+    this.ui.selected = this.visible.indexOf(target);
+    this.draw();
+    this.focus(target);
   }
 
   private focus(session: Session): void {
@@ -709,6 +736,10 @@ export class App {
       case "x":
         if (session) this.closeReviewer(session);
         return;
+      case "J":
+        return this.jumpBy(1);
+      case "K":
+        return this.jumpBy(-1);
       case "n":
         if (session) this.newAgent(session);
         return;
@@ -725,6 +756,7 @@ export class App {
         if (session) this.focus(session);
         return;
       default:
+        if (/^[1-9]$/.test(key)) this.jumpTo(Number(key));
         return;
     }
     this.clampSelection();
