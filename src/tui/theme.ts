@@ -10,7 +10,6 @@ export const ICON = {
   review: "⌖",
   child: "╰",
   selection: "▌",
-  lastPrompt: "↳",
   rule: "─",
 } as const;
 

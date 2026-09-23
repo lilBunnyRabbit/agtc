@@ -11,7 +11,6 @@ import {
   DETAIL_INDENT,
   type Layout,
   MIN_TITLE_WIDTH,
-  PROMPT_AGE_WIDTH,
   type Size,
   STATUS_WIDTH,
   computeLayout,
@@ -60,7 +59,6 @@ const HEADER_LINES = 2; // header + blank line
 /** How many live rows get a digit: one key each. */
 const JUMP_KEYS = 9;
 const MIN_LIST_LINES = 3;
-const PROMPT_LINES = 2;
 const MAX_EXTRA_ROOTS = 2;
 
 export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame {
@@ -227,23 +225,16 @@ function scrollWindow(lines: string[], focusLine: number, height: number): strin
 
 // ---------------------------------------------------------------- detail pane
 
-// ---------------------------------------------------------------- detail pane
-
-/** Older prompts listed under the latest one when the terminal is tall enough. */
-const HISTORY_PROMPTS = 2;
 const MIN_RULE = 4;
 const SUB_INDENT = "  ";
 
-/** The detail with prompt history when it fits, without when it does not, nothing when even that would squeeze the list. */
+/** The detail when it fits, nothing when it would squeeze the list. */
 function fittingDetail(session: Session, layout: Layout, maxLines: number, reviews: Reviews): string[] {
-  for (const history of [HISTORY_PROMPTS, 0]) {
-    const lines = renderDetail(session, layout, history, reviews);
-    if (lines.length <= maxLines) return lines;
-  }
-  return [];
+  const lines = renderDetail(session, layout, reviews);
+  return lines.length <= maxLines ? lines : [];
 }
 
-function renderDetail(session: Session, layout: Layout, history: number, reviews: Reviews): string[] {
+function renderDetail(session: Session, layout: Layout, reviews: Reviews): string[] {
   const lines = ["", detailRule(session, layout), "", DETAIL_INDENT + statusLine(session, layout), ""];
   const push = (text: string) => lines.push(DETAIL_INDENT + text);
   const sub = (text: string) => push(SUB_INDENT + text);
@@ -261,8 +252,6 @@ function renderDetail(session: Session, layout: Layout, history: number, reviews
   }
   const review = reviewLine(session, reviews, layout.detailWidth);
   if (review) lines.push("", DETAIL_INDENT + review);
-  const prompts = promptLines(session, layout, history);
-  if (prompts.length) lines.push("", ...prompts.map((line) => DETAIL_INDENT + line));
   lines.push("");
   return lines;
 }
@@ -321,22 +310,6 @@ function changesSummary({ changes }: Session): string {
     : style("clean", ANSI.dim);
   const ahead = changes.ahead ? style(`   ${changes.ahead} ahead of ${changes.base}`, ANSI.dim) : "";
   return `   ${work}${ahead}`;
-}
-
-/** The latest prompt with its age, wrapped; up to `history` older ones dim below it, one line each. */
-function promptLines(session: Session, layout: Layout, history: number): string[] {
-  const latest = session.lastPrompt ?? session.prompts.at(-1);
-  if (!latest) return [];
-  const cut = session.lastPrompt ? session.prompts.lastIndexOf(session.lastPrompt) : -1;
-  const before = cut >= 0 ? session.prompts.slice(0, cut) : session.prompts.slice(0, -1);
-  const older = history ? before.filter((prompt) => !prompt.startsWith("/")).slice(-history).reverse() : [];
-  const age = session.lastPromptAt ? `${relativeAge(session.lastPromptAt)} ago` : "";
-  const gutter = (text: string) => `${ICON.lastPrompt} ${style(padRight(text, PROMPT_AGE_WIDTH), ANSI.dim)}  `;
-  const blank = " ".repeat(2 + PROMPT_AGE_WIDTH + 2);
-  return [
-    ...wrapWords(latest, layout.promptWidth, PROMPT_LINES).map((line, i) => (i === 0 ? gutter(age) : blank) + line),
-    ...older.map((prompt) => style(gutter("") + truncate(prompt, layout.promptWidth), ANSI.dim)),
-  ];
 }
 
 // ---------------------------------------------------------------- footer
