@@ -30,15 +30,16 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
 ## What you see
 
 ```
- agtc   ✳ 11  ⬡ 1     needs input 0   done 1   busy 2   idle 8   inactive 5
+ agtc 1.5.0  ✳ 2  ⬡ 2   input 0   done 1   busy 1  idle 2  inactive 0
 
- acme-platform ───────────────────────────────────────── 10 sessions
- ▌     ✳  done      Settings page safe padding                      2m
-   ⎇   ✳  busy      Sidebar header overflow on iOS                  5m
-       ⬡  idle      Can the chart legend be restyled                1h
+ acme-platform ────────────────────────────────────────────────  1 done  4 sessions
+ ▌ 1    ✳   done     Settings page safe padding                                2m
+   2 ⎇  ✳  busy      Sidebar header overflow on iOS                            5m
+   3    ⬡  idle      ╰ review                                                  1m
+   4    ⬡  idle      Can the chart legend be restyled                          1h
 ```
 
-- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews
+- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews; the digit left of a running row is its `1`…`9` key
 - **needs input** blocked on a permission or dialog
 - **done** turn finished after your last prompt and you have not looked at it yet
 - **busy** working, **idle** waiting for you, **inactive** not running (recent history)
