@@ -72,6 +72,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `d` | toggle detail pane |
 | `?` | the whole key reference, tmux keys and the review loop included, in a popup (`q` closes); outside tmux, the footer shows every key instead of the ones for the selected session |
 | `q` | quit |
+| mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
 | `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `J`, `K` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
 

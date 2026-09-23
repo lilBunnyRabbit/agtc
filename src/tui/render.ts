@@ -53,6 +53,8 @@ export interface Frame {
   lines: string[];
   /** Sessions in list order, so key handlers can map `selected` to a session. */
   visible: Session[];
+  /** The session drawn on each screen row (0-based), for the mouse; rules, header, detail and footer rows are undefined. */
+  hits: (Session | undefined)[];
 }
 
 const HEADER_LINES = 2; // header + blank line
@@ -72,12 +74,14 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const room = size.rows - HEADER_LINES - footer.length;
   const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
   const listHeight = Math.max(MIN_LIST_LINES, room - detail.length);
-  const body = scrollWindow(list.lines, list.lineOfSelected, listHeight);
+  const start = scrollStart(list.lines.length, list.lineOfSelected, listHeight);
+  const body = list.lines.slice(start, start + listHeight);
   const filler = Array<string>(Math.max(0, listHeight - body.length)).fill("");
+  const hits = [...Array<undefined>(HEADER_LINES), ...list.sessions.slice(start, start + listHeight)];
 
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
   const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
-  return { lines: lines.map((line) => clip(line, layout.columns)), visible };
+  return { lines: lines.map((line) => clip(line, layout.columns)), visible, hits };
 }
 
 /** The live sessions the digit keys stage, in list order: row 1 is the first live row on screen. */
@@ -132,6 +136,8 @@ function countByStatus(sessions: Session[]): Record<Status, number> {
 
 interface RenderedList {
   lines: string[];
+  /** The session each line belongs to; a repo rule or blank has none. */
+  sessions: (Session | undefined)[];
   /** Line index of the selected session, for scrolling. */
   lineOfSelected: number;
 }
@@ -139,6 +145,11 @@ interface RenderedList {
 /** One line per session, grouped under a rule per repo. */
 function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedList {
   const lines: string[] = [];
+  const sessions: (Session | undefined)[] = [];
+  const push = (line: string, session?: Session) => {
+    lines.push(line);
+    sessions.push(session);
+  };
   let lineOfSelected = 0;
   let currentRepo: string | undefined;
   const digits = new Map(jumpTargets(visible).map((s, i) => [s.id, String(i + 1)]));
@@ -146,21 +157,21 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
   visible.forEach((session, index) => {
     if (session.repo !== currentRepo) {
       currentRepo = session.repo;
-      if (lines.length) lines.push("");
-      lines.push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo), layout));
+      if (lines.length) push("");
+      push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo), layout));
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    lines.push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id)));
+    push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id)), session);
     const snippet = matchSnippet(session, ui.query);
-    if (snippet) lines.push(snippetLine(snippet, isSelected, layout));
+    if (snippet) push(snippetLine(snippet, isSelected, layout), session);
   });
 
   if (!visible.length) {
     const hint = ui.query ? "no sessions match" : `nothing running${ui.showInactive ? "" : " (press a to show inactive)"}`;
-    lines.push(style(`   ${hint}`, ANSI.dim));
+    push(style(`   ${hint}`, ANSI.dim));
   }
-  return { lines, lineOfSelected };
+  return { lines, sessions, lineOfSelected };
 }
 
 /** The group line carries how many of its sessions want you, so a folded-away group still shows it. */
@@ -217,10 +228,10 @@ function snippetLine(snippet: string, isSelected: boolean, layout: Layout): stri
 }
 
 /** At most `height` lines, the selected one kept roughly centred once the list outgrows the space. */
-function scrollWindow(lines: string[], focusLine: number, height: number): string[] {
-  const maxStart = Math.max(0, lines.length - height);
-  const start = Math.min(Math.max(0, focusLine - Math.floor(height / 2)), maxStart);
-  return lines.slice(start, start + height);
+/** First list line on screen: the focused line sits mid-window, except at the ends. */
+function scrollStart(length: number, focusLine: number, height: number): number {
+  const maxStart = Math.max(0, length - height);
+  return Math.min(Math.max(0, focusLine - Math.floor(height / 2)), maxStart);
 }
 
 // ---------------------------------------------------------------- detail pane

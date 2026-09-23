@@ -15,6 +15,9 @@ export const ANSI = {
   altScreenOff: "\x1b[?1049l",
   hideCursor: "\x1b[?25l",
   showCursor: "\x1b[?25h",
+  /** Clicks and wheel only (1000), reported as SGR sequences (1006) so wide panes and releases parse. */
+  mouseOn: "\x1b[?1000h\x1b[?1006h",
+  mouseOff: "\x1b[?1006l\x1b[?1000l",
   bell: "\x07",
 } as const;
 

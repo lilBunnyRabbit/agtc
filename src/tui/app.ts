@@ -20,11 +20,13 @@ import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
 import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupTmux, splitPane, tmuxHasSession, tmuxPopup } from "../sources/tmux";
 import { ANSI } from "./ansi";
-import { Key, isPrintable, splitKeys } from "./keys";
+import { Key, type Mouse, isPrintable, parseMouse, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
-import { type Prompt, type UiState, initialUiState, jumpTargets, renderFrame } from "./render";
+import { type Frame, type Prompt, type UiState, initialUiState, jumpTargets, renderFrame } from "./render";
 
 const MESSAGE_TTL_MS = 3000;
+/** Two clicks on one row this close together open it. Nothing reports a double click natively. */
+const DOUBLE_CLICK_MS = 300;
 const DEFAULT_WORKTREES_DIR = join(".claude", "worktrees");
 /** A freshly started agent registers itself within this long. */
 const NEW_AGENT_REFRESH_MS = 1500;
@@ -53,6 +55,9 @@ export class App {
   private messageTimer: ReturnType<typeof setTimeout> | undefined;
   private onPromptSubmit: ((value: string) => void) | undefined;
   private restoreOffered = false;
+  /** The last frame drawn: its hit map turns a mouse row into a session. */
+  private frame: Frame | undefined;
+  private lastClick: { id: string; at: number } | undefined;
   private readonly out = process.stdout;
 
   constructor(
@@ -72,8 +77,8 @@ export class App {
       for (const key of splitKeys(chunk)) this.handleKey(key);
     });
 
-    this.out.write(ANSI.altScreenOn + ANSI.hideCursor);
-    process.on("exit", () => this.out.write(ANSI.showCursor + ANSI.altScreenOff));
+    this.out.write(ANSI.altScreenOn + ANSI.hideCursor + ANSI.mouseOn);
+    process.on("exit", () => this.out.write(ANSI.mouseOff + ANSI.showCursor + ANSI.altScreenOff));
     process.on("SIGINT", () => this.quit());
     process.on("SIGTERM", () => this.quit());
     this.out.on("resize", () => this.draw());
@@ -100,8 +105,8 @@ export class App {
   }
 
   private draw(): void {
-    const frame = renderFrame(this.sessions, this.ui, terminalSize());
-    this.out.write(ANSI.clearScreen + frame.lines.join("\n"));
+    this.frame = renderFrame(this.sessions, this.ui, terminalSize());
+    this.out.write(ANSI.clearScreen + this.frame.lines.join("\n"));
   }
 
   /** Shows a footer message that clears itself. */
@@ -603,9 +608,31 @@ export class App {
   // ---------------------------------------------------------------- keys
 
   private handleKey(key: string): void {
+    const mouse = parseMouse(key);
+    if (mouse) return this.handleMouse(mouse);
     if (this.ui.prompt) this.handlePromptKey(key);
     else if (this.ui.searchMode) this.handleSearchKey(key);
     else this.handleListKey(key);
+  }
+
+  /** Wheel moves the selection, a click selects the row under it, a second click on the same row within a moment opens it. A prompt keeps the mouse out. */
+  private handleMouse({ button, y, release }: Mouse): void {
+    if (this.ui.prompt || release) return;
+    if (button === "wheelUp" || button === "wheelDown") {
+      this.ui.selected += button === "wheelUp" ? -1 : 1;
+      this.clampSelection();
+      this.draw();
+      return;
+    }
+    if (button !== "left") return;
+    const session = this.frame?.hits[y - 1];
+    if (!session) return;
+    const now = Date.now();
+    const again = this.lastClick?.id === session.id && now - this.lastClick.at < DOUBLE_CLICK_MS;
+    this.lastClick = again ? undefined : { id: session.id, at: now };
+    this.ui.selected = this.visible.indexOf(session);
+    this.draw();
+    if (again) this.focus(session);
   }
 
   private ask(prompt: Omit<Prompt, "value"> & { value?: string }, submit: (value: string) => void): void {
