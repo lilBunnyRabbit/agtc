@@ -16,7 +16,7 @@ import { type Session, type Tool, isTool, resumeCommand, resumeInvocation, workD
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
-import { OWN_PANE, focusTmuxPane, newTmuxWindow, pasteIntoPane, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
+import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
 import { ANSI } from "./ansi";
 import { Key, isPrintable, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
@@ -313,6 +313,31 @@ export class App {
     void this.handTo(session, specRequest(path)).then((where) => {
       if (where === "pane") this.say(`spec request in "${collapse(session.title, 40)}": enter there, then V again`);
       else if (where === "clipboard") this.say(session.status === "inactive" ? "spec request copied: R resumes the session, paste it there" : "spec request copied: the session runs outside tmux, paste it there");
+    });
+  }
+
+  /** `x`: a reviewer is disposable once its report is over, so this ends it, window and all. Only reviewers: nothing else agtc started is read-only. */
+  private closeReviewer(session: Session): void {
+    if (!session.reviewOf) {
+      this.say("x closes reviewers only: quit other agents in their own window");
+      return;
+    }
+    if (session.status === "inactive") {
+      this.say("not running");
+      return;
+    }
+    if (!session.tmux) {
+      this.say(`runs outside tmux in ${session.tty ?? "another terminal"}: quit it there`);
+      return;
+    }
+    if (session.status === "done") {
+      this.say("unread report: V hands it over, m drops it, then x");
+      return;
+    }
+    const { paneId } = session.tmux;
+    void killPane(paneId).then((ok) => {
+      this.say(ok ? `closed ${session.tool} reviewer` : `tmux pane ${paneId} not found`);
+      if (ok) setTimeout(() => void this.refresh(), NEW_AGENT_REFRESH_MS);
     });
   }
 
@@ -680,6 +705,9 @@ export class App {
         return;
       case "P":
         if (session) this.pushAndOpenPr(session);
+        return;
+      case "x":
+        if (session) this.closeReviewer(session);
         return;
       case "n":
         if (session) this.newAgent(session);

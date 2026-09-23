@@ -116,6 +116,11 @@ export async function newTmuxWindow(cwd: string, command: string, session?: stri
   return paneId;
 }
 
+/** Ends a pane and everything running in it; a window with nothing else left closes too. By pane id, never by window: the pane may be on agtc's stage. */
+export function killPane(paneId: string): Promise<boolean> {
+  return succeeds(["tmux", "kill-pane", "-t", paneId]);
+}
+
 /** Types `text` into a pane's input as a bracketed paste, so newlines do not submit. */
 export async function pasteIntoPane(paneId: string, text: string): Promise<boolean> {
   const buffer = `agtc-${process.pid}`;
