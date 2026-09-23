@@ -67,7 +67,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
   const reviews: Reviews = { reviewerOf: liveReviewers(sessions), subjectOf: new Map(sessions.map((s) => [s.id, s])) };
 
-  const list = renderList(visible, ui, layout, reviews);
+  const list = renderList(visible, ui, layout);
   const footer = renderFooter(ui, selected, layout);
   const room = size.rows - HEADER_LINES - footer.length;
   const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
@@ -132,7 +132,7 @@ interface RenderedList {
 }
 
 /** One line per session, grouped under a rule per repo. */
-function renderList(visible: Session[], ui: UiState, layout: Layout, reviews: Reviews): RenderedList {
+function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedList {
   const lines: string[] = [];
   let lineOfSelected = 0;
   let currentRepo: string | undefined;
@@ -145,7 +145,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout, reviews: Re
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    lines.push(sessionLine(session, isSelected, layout, reviews.reviewerOf.get(session.id)));
+    lines.push(sessionLine(session, isSelected, layout, visible[index - 1]));
     const snippet = matchSnippet(session, ui.query);
     if (snippet) lines.push(snippetLine(snippet, isSelected, layout));
   });
@@ -173,21 +173,25 @@ function selectionBar(isSelected: boolean): string {
   return isSelected ? style(ICON.selection, ANSI.cyan) : " ";
 }
 
-/** A reviewer's row is indented under its subject; a reviewed row ends in a marker in the reviewer's colour. */
-function sessionLine(session: Session, isSelected: boolean, layout: Layout, reviewer: Session | undefined): string {
+/**
+ * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
+ * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
+ */
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
-  const nested = session.reviewOf ? style(`${SUB_INDENT}${ICON.review} `, inactive ? ANSI.dim : ANSI.cyan) : "";
-  const marker = reviewer ? ` ${style(ICON.review, ...statusStyle(reviewer.status))}` : "";
+  const nested = !!session.reviewOf;
+  const underSubject = nested && !!above && (above.id === session.reviewOf || above.reviewOf === session.reviewOf);
+  const branch = nested ? `${style(ICON.child, inactive ? ANSI.dim : ANSI.cyan)} ` : "";
   const prefix = rowPrefix({
     bar: selectionBar(isSelected),
-    worktree: session.worktree ? worktreeIcon(inactive) : " ",
+    worktree: session.worktree && !nested ? worktreeIcon(inactive) : " ",
     tool: toolIcon(session.tool, inactive),
     status: attention
       ? style(padRight(` ${STATUS_LABEL[session.status]}`, STATUS_WIDTH), ...statusStyle(session.status), ANSI.reverse)
       : style(padRight(STATUS_LABEL[session.status], STATUS_WIDTH), ...statusStyle(session.status)),
   });
-  const title = padRight(session.title, layout.titleWidth - visibleLength(nested) - visibleLength(marker));
+  const title = padRight(underSubject ? "review" : session.title, layout.titleWidth - visibleLength(branch));
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
@@ -196,7 +200,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, revi
         ? style(title, ...statusStyle(session.status))
         : title;
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + nested + styledTitle + marker + rowSuffix(age);
+  return prefix + branch + styledTitle + rowSuffix(age);
 }
 
 /** Shows where an older prompt matched the search, aligned under the title. */

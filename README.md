@@ -38,7 +38,7 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
        ⬡  idle      Does our voice orb allow styling                1h
 ```
 
-- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `⌖` a reviewer started with `V` (indented under the session it reviews; the reviewed row ends in a `⌖` in the reviewer's colour)
+- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews
 - **needs input** blocked on a permission or dialog
 - **done** turn finished after your last prompt and you have not looked at it yet
 - **busy** working, **idle** waiting for you, **inactive** not running (recent history)
@@ -86,7 +86,7 @@ Every flow assumes the hub is running: `agtc tmux` in any terminal, Zed's includ
 
 **Review what an agent did.** Select it, `v`: lazygit over its checkout, `q` closes. For the diff in the editor, `o`.
 
-**Get a second opinion.** Select the session, `V`. First time, take `ask <tool> for a spec`: a request lands in the session's input, enter, and the agent writes what was asked, what the result must do and what is out of scope to `~/.cache/agtc/specs/<session>.md`, in its own words but without its reasoning. `V` again: the file is the default now (edit it in Zed first if you like), pick the reviewer. A fresh agent of the other tool starts in the same checkout with the spec and the base branch, reads the diff, and reports findings, questions and a verdict. It cannot edit: Claude runs with every writing tool disallowed, Codex in its read-only sandbox. Its row sits under the session, `⌖` on the session's row shows its state. When it asks something, `enter` on its row and answer. When it is done, `V` on its row: the report lands in the reviewed session's input, unsent, and that session comes on stage. Read it, cut what you disagree with, enter. The agent fixes, you `V` again on the session for a fresh pair of eyes, or `v` and commit.
+**Get a second opinion.** Select the session, `V`. First time, take `ask <tool> for a spec`: a request lands in the session's input, enter, and the agent writes what was asked, what the result must do and what is out of scope to `~/.cache/agtc/specs/<session>.md`, in its own words but without its reasoning. `V` again: the file is the default now (edit it in Zed first if you like), pick the reviewer. A fresh agent of the other tool starts in the same checkout with the spec and the base branch, reads the diff, and reports findings, questions and a verdict. It cannot edit: Claude runs with every writing tool disallowed, Codex in its read-only sandbox. Its row hangs off the session's, so its status sits right under the work it judges. When it asks something, `enter` on its row and answer. When it is done, `V` on its row: the report lands in the reviewed session's input, unsent, and that session comes on stage. Read it, cut what you disagree with, enter. The agent fixes, you `V` again on the session for a fresh pair of eyes, or `v` and commit.
 
 **Ship it.** `v`, commit in lazygit, `q`. Then `P`: agtc checks the tree is clean, the branch is not the base and no reviewer is mid-turn, then a popup runs `git push -u origin <branch>` and opens the pull request in the browser (`gh pr view --web`, or `gh pr create --web` for a new one). More commits later: `P` again, same branch, same PR. Nothing else in agtc sends anything off the machine.
 
