@@ -1,4 +1,4 @@
-export type Mode = "tui" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "help" | "version";
+export type Mode = "tui" | "graph" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "help" | "version";
 export type Jump = "tmux" | "zed";
 
 export interface Options {
@@ -35,6 +35,8 @@ Terminal dashboard for local Claude Code and Codex sessions.
 Usage
   agtc                 interactive TUI
   agtc tmux            open (or attach to) a tmux hub with agtc in it
+  agtc graph           read-only overview of what runs: a box per session, its reviewers and
+                       subagents in boxes to the right, live; q quits
   agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
   agtc send [DIR] --file F --row N
                        type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
@@ -87,7 +89,7 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const command = argv[0]?.startsWith("-") ? undefined : argv[0];
-  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", attach: "attach", send: "send" };
+  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", attach: "attach", send: "send" };
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")

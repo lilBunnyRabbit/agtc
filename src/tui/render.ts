@@ -2,7 +2,7 @@ import pkg from "../../package.json";
 import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
-import { VIEWS, type View, filterSessions, matchSnippet } from "../search";
+import { filterSessions, matchSnippet } from "../search";
 import { type Session, type Status, STATUSES, type Tool } from "../session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import {
@@ -17,7 +17,6 @@ import {
   rowPrefix,
   rowSuffix,
 } from "./layout";
-import { renderGraph } from "./graph";
 import { type Hit, type RenderedBody, jumpTargets, repoRule, rowHit, selectionBar, statusCell } from "./rows";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
@@ -31,8 +30,6 @@ export interface Prompt {
 export interface UiState {
   /** Label for the enter key in the footer. */
   enterHint: string;
-  /** How the sessions are drawn: rows, or a graph of who spawned or reviews whom. `tab` cycles. */
-  view: View;
   /** Index into the visible (filtered) list. */
   selected: number;
   showInactive: boolean;
@@ -50,7 +47,7 @@ export interface UiState {
 }
 
 export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
-  return { enterHint, view: "list", selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
+  return { enterHint, selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
 }
 
 export interface Frame {
@@ -71,7 +68,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
   const reviews: Reviews = { reviewerOf: liveReviewers(sessions), subjectOf: new Map(sessions.map((s) => [s.id, s])) };
 
-  const list = ui.view === "graph" ? renderGraph(visible, ui.selected, layout) : renderList(visible, ui, layout);
+  const list = renderList(visible, ui, layout);
   const footer = renderFooter(ui, selected, layout);
   const room = size.rows - HEADER_LINES - footer.length;
   const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
@@ -103,7 +100,7 @@ function liveReviewers(sessions: Session[]): Map<string, Session> {
 // ---------------------------------------------------------------- header
 
 /** Full header when it fits; a narrow pane (agtc as a tmux sidebar) gets short status words and no refresh age. */
-function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layout: Layout): string {
+export function renderHeader(sessions: Session[], visible: Session[], ui: Pick<UiState, "query" | "refreshedAt">, layout: Layout): string {
   const counts = countByStatus(sessions);
   const liveCount = (tool: Tool) => sessions.filter((s) => s.tool === tool && s.status !== "inactive").length;
   const badge = (status: Status, label: string) =>
@@ -115,18 +112,12 @@ function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layo
   const tools = `${toolIcon("claude")} ${liveCount("claude")}  ${toolIcon("codex")} ${liveCount("codex")}`;
   const refreshed = style(`   refreshed ${relativeAge(ui.refreshedAt)} ago`, ANSI.dim);
   const matches = ui.query ? `   ${style(`${ICON.search} "${ui.query}" ${plural(visible.length, "match", "matches")}`, ANSI.yellow)}` : "";
-  const tabs = `   ${viewTabs(ui.view)}`;
 
-  const wide = ` ${title}   ${tools}     ${STATUSES.map((s) => badge(s, s)).join("   ")}${refreshed}${matches}${tabs}`;
+  const wide = ` ${title}   ${tools}     ${STATUSES.map((s) => badge(s, s)).join("   ")}${refreshed}${matches}`;
   if (visibleLength(wide) <= layout.columns) return wide;
   const badges = STATUSES.map((s) => badge(s, STATUS_LABEL[s])).join("  ");
-  const compact = ` ${title}  ${tools}   ${badges}${matches}${tabs}`;
-  return visibleLength(compact) <= layout.columns ? compact : ` ${title}  ${badges}${matches}${tabs}`;
-}
-
-/** The view switcher: every view's name, the current one lit. */
-function viewTabs(view: View): string {
-  return VIEWS.map((v) => (v === view ? style(` ${v} `, ANSI.reverse) : style(` ${v} `, ANSI.dim))).join("");
+  const compact = ` ${title}  ${tools}   ${badges}${matches}`;
+  return visibleLength(compact) <= layout.columns ? compact : ` ${title}  ${badges}${matches}`;
 }
 
 function countByStatus(sessions: Session[]): Record<Status, number> {
@@ -373,7 +364,6 @@ function allKeys(ui: UiState): string[] {
     "M all seen",
     "c copy resume",
     "r refresh",
-    `tab view:${ui.view}`,
     `a inactive:${onOff(ui.showInactive)}`,
     `d detail:${onOff(ui.showDetail)}`,
     "q quit",

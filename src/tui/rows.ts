@@ -11,7 +11,7 @@ export interface Hit {
   session: Session;
 }
 
-/** Lines of one view's body, with what each line stands for. */
+/** Lines of the list, with what each line stands for. */
 export interface RenderedBody {
   lines: string[];
   /** Per line, the stretches that stand for a session; a repo rule or blank has none. */

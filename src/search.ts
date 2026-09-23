@@ -1,13 +1,8 @@
 import type { Session, SessionInput } from "./session";
 
-export type View = "list" | "graph";
-export const VIEWS: View[] = ["list", "graph"];
-
 export interface SessionFilter {
   showInactive: boolean;
   query: string;
-  /** The graph shows what runs; inactive sessions stay in the list. */
-  view: View;
 }
 
 const SNIPPET_BEFORE = 40;
@@ -24,10 +19,10 @@ export function buildSearchText(session: SessionInput): string {
 const queryTerms = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean);
 
 /** Sessions to list. Every term must match somewhere; a search always looks through inactive sessions too. */
-export function filterSessions(sessions: Session[], { showInactive, query, view }: SessionFilter): Session[] {
+export function filterSessions(sessions: Session[], { showInactive, query }: SessionFilter): Session[] {
   const terms = queryTerms(query);
   const live = sessions.filter((s) => s.status !== "inactive");
-  const pool = view === "graph" ? live : showInactive || terms.length ? sessions : live;
+  const pool = showInactive || terms.length ? sessions : live;
   return terms.length ? pool.filter((s) => terms.every((term) => s.searchText.includes(term))) : pool;
 }
 

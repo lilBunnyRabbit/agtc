@@ -40,10 +40,12 @@ All six shipped on 2026-09-23, unreleased. What each left behind:
    view would make it one.
 4. Read-only resume: `readOnlyFlags` shared by the fresh command and `R` / `S` / `c`;
    `HubWindow.reviewOf` carries it across restarts.
-5. Views: `ui.view` mode flag, not the shell/view split of cockpit decision 1. Same data, same
-   keys, only the body renderer differs, so the flag is the right weight; the split is still
-   the plan for views with their own data (quno, ot). `tab` cycles, digits stay jump keys.
-   Graph: `src/tui/graph.ts`, one level deep. Subagents from `subagents/agent-*.meta.json` plus
+5. Views: shipped first as a `tab`-cycled `ui.view` flag inside the TUI, rejected the same day:
+   the overview needs no keys, and the TUI needs no second body renderer. Now `agtc graph`,
+   a read-only subcommand with its own loop (`src/tui/graph.ts`), polling with a read-only
+   `SeenStore` so it never writes the hub's state file. Views with their own data (quno, ot)
+   go the same way: a command each, not a mode. Meant for a full screen: families (a session
+   with its children) flow across the width, as many per row as fit. Graph: one level deep. Subagents from `subagents/agent-*.meta.json` plus
    the log tail (`src/sources/claude/subagents.ts`); Codex from `thread_spawn_edges`.
    Verified 2026-09-23: agentId is unrelated to the `toolu_` id, the meta file carries
    `toolUseId`, `agentType`, `description`, `spawnDepth`; the parent's tool result says

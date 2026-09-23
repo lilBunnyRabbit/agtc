@@ -9,6 +9,7 @@ import { sendToAgent } from "./send";
 import { collectSessions } from "./sessions";
 import { detectOwnPane } from "./sources/tmux";
 import { App } from "./tui/app";
+import { watchGraph } from "./tui/graph";
 import { terminalSize } from "./tui/layout";
 import { initialUiState, renderFrame } from "./tui/render";
 import { selfUpdate } from "./update";
@@ -53,5 +54,9 @@ switch (options.mode) {
 
   case "tui":
     new App(options, seen()).start();
+    break;
+
+  case "graph":
+    watchGraph(options);
     break;
 }

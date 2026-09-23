@@ -51,10 +51,14 @@ export class SeenStore {
   private reviews: ReviewLink[] = [];
   private fresh = true;
 
-  private constructor(private readonly path: string) {}
+  private constructor(
+    private readonly path: string,
+    /** A second agtc beside the hub reads the file and never writes it, so no mark is lost. */
+    private readonly readOnly: boolean,
+  ) {}
 
-  static load(path: string): SeenStore {
-    const store = new SeenStore(path);
+  static load(path: string, { readOnly = false } = {}): SeenStore {
+    const store = new SeenStore(path, readOnly);
     const state = readJson<Partial<SeenState>>(path);
     if (state) {
       store.seen = state.seen ?? {};
@@ -130,6 +134,7 @@ export class SeenStore {
   }
 
   save(): void {
+    if (this.readOnly) return;
     try {
       mkdirSync(dirname(this.path), { recursive: true });
       writeFileSync(this.path, JSON.stringify({ seen: this.seen, opened: this.opened, hub: this.hub, reviews: this.reviews } satisfies SeenState));

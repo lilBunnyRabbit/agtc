@@ -48,26 +48,26 @@ Selected session gets a detail pane: working directory, worktree and branch, unc
 
 Sessions that want you, `input` and `done`, get a filled badge and a title in the same colour, and their group line counts them, so nothing waiting hides in a long list. The order is fixed: repos alphabetically, live sessions in the order they started, finished ones below them newest first. A status change recolours a row, it never moves it, and the selection stays on the session it was on.
 
-`tab` switches to the graph, the header's `list  graph` tabs say which is on. Same sessions, running ones only, drawn like a pipeline: a box per session on the left, what it spawned in boxes to its right, arrows between them. The border takes the status colour, the selected box is drawn heavy.
+`agtc graph`, full screen in a terminal of its own, is a read-only overview of what runs: the same sessions drawn like a pipeline, a box per running session on the left, what it spawned in boxes to its right, arrows between them. The border takes the status colour. It redraws on every poll and takes no key but `q`.
 
 ```
  acme-platform ──────────────────────────────────────────────────────────────  4 sessions
- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    ┌─────────────────────────────────┐
- ┃ 1 ✳ ⎇ Sidebar header overflow   ┃─┬─▶│ 2 ⬡ review                      │
- ┃   idle · 5m · fix/header        ┃ │  │   busy · 4m                     │
- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │  └─────────────────────────────────┘
+ ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+ │ ✳ ⎇  Sidebar header overflow    │─┬─▶│ ⬡ review                        │
+ │   idle · 5m · fix/header        │ │  │   busy · 4m                     │
+ └─────────────────────────────────┘ │  └─────────────────────────────────┘
                                      │  ┌─────────────────────────────────┐
                                      └─▶│ ◇ Explore: callers of Header    │
                                         │   busy · 1m                     │
                                         └─────────────────────────────────┘
 
  ┌─────────────────────────────────┐
- │ 3 ✳ Settings page safe padding  │
+ │ ✳ Settings page safe padding    │
  │   busy · 2m · main              │
  └─────────────────────────────────┘
 ```
 
-Children are the session's reviewers (`V`), selectable with every key a reviewer row has, and `◇` its subagents: agents it runs inside its own process (Claude's Agent tool, Codex collaborators), busy or finished in the last ten minutes, with their type and what they were asked. Subagents have no pane of their own, so a click on one selects the session. A pane too narrow for two columns hangs the children under their parent.
+Children are the session's reviewers (`V`) and `◇` its subagents: agents it runs inside its own process (Claude's Agent tool, Codex collaborators), busy or finished in the last ten minutes, with their type and what they were asked. A session with its children is a family; families flow across the width, as many per row as fit, so a full screen holds them all. A terminal too narrow for two boxes side by side hangs the children under their parent. What does not fit ends in a dim `…`.
 
 ## Keys
 
@@ -91,7 +91,6 @@ Children are the session's reviewers (`V`), selectable with every key a reviewer
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
-| `tab` | next view: the list, or the graph of running sessions with their reviewers and subagents |
 | `?` | the whole key reference, tmux keys and the review loop included, in a popup (`q` closes); outside tmux, the footer shows every key instead of the ones for the selected session |
 | `q` | quit |
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
@@ -130,6 +129,7 @@ Every flow assumes the hub is running: `agtc tmux` in any terminal, Zed's includ
 
 ```
 agtc tmux            open (or attach to) a tmux session with agtc in a window named hub
+agtc graph           read-only overview of what runs: a box per session, its reviewers and subagents to the right, live; q quits
 agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
 agtc send [DIR] --file F --row N
                      type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
@@ -293,7 +293,7 @@ ln -s "$PWD/bin/agtc" ~/.local/bin/agtc-dev   # or keep the release and run the 
 Layout:
 
 ```
-src/main.ts          entry: --help / --version / --json / --once / tmux / TUI
+src/main.ts          entry: --help / --version / --json / --once / tmux / graph / TUI
 src/cli.ts           flag parsing and usage text
 src/session.ts       Session type, status order
 src/sessions.ts      collects from every source, attaches git changes, resolves "done", sorts
@@ -306,7 +306,7 @@ src/lookup.ts        the agent running in a directory, for attach and send
 src/attach.ts        `agtc attach`: grouped tmux view on that agent
 src/send.ts          `agtc send`: paste a code reference into that agent's input
 src/sources/         claude/ (registry, history, transcript), codex/ (sqlite, lsof, rollout log), git, processes, terminal, tmux
-src/tui/             ansi codes, theme, row layout, frame rendering, key parsing, App loop
+src/tui/             ansi codes, theme, row layout, frame rendering, key parsing, App loop, the `agtc graph` view and loop
 src/lib/             shell, files, text, time, ttl-cache helpers
 ```
 
