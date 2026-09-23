@@ -11,7 +11,7 @@ import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon
  * between them. Like a CI pipeline, read left to right.
  *
  *   ┌──────────────────────────────┐    ┌──────────────────────────────┐
- *   │ 2 ✳ ⎇ Transitions.dev anima… │─┬─▶│ 3 ⬡ review                   │
+ *   │ 2 ✳ ⎇  Transitions.dev anim… │─┬─▶│ 3 ⬡ review                   │
  *   │   idle · 5m · feat/motion    │ │  │   busy · 4m                  │
  *   └──────────────────────────────┘ │  └──────────────────────────────┘
  *                                    │  ┌──────────────────────────────┐
@@ -116,7 +116,7 @@ export function renderGraph(visible: Session[], selected: number, layout: Layout
 /** A session's box: its digit, tool, worktree and title, then status, age and branch. */
 function sessionNode(session: Session, selected: boolean, digit: string | undefined): Node {
   const attention = needsAttention(session.status);
-  const head = `${digit ? style(digit, selected ? ANSI.cyan : ANSI.dim) : " "} ${toolIcon(session.tool)} ${session.worktree && !session.reviewOf ? `${worktreeIcon()} ` : ""}`;
+  const head = `${digit ? style(digit, selected ? ANSI.cyan : ANSI.dim) : " "} ${toolIcon(session.tool)} ${session.worktree && !session.reviewOf ? `${worktreeIcon()}  ` : ""}`;
   const title = session.reviewOf ? "review" : session.title;
   const status = attention
     ? style(` ${STATUS_LABEL[session.status]} `, ...statusStyle(session.status), ANSI.reverse)
