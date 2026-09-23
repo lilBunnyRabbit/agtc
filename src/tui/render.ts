@@ -392,9 +392,9 @@ function rowKeys(ui: UiState, session: Session | undefined): string[] {
 
 function allKeys(ui: UiState): string[] {
   return [
-    "j/k stage next/prev",
+    "j/k move up/down",
+    "J/K stage up/down",
     "1-9 stage that row",
-    "↑↓/JK move only",
     "g/G top/bottom",
     `/ search${ui.query ? " (esc clears)" : ""}`,
     `enter ${ui.enterHint}`,
