@@ -9,6 +9,8 @@ export interface HubWindow {
   tool: "claude" | "codex";
   cwd: string;
   name: string;
+  /** The session it reviews, when it is a reviewer: resumed read-only. */
+  reviewOf?: string;
 }
 
 /** A reviewer started with `V` and the session it reviews. */

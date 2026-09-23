@@ -1,4 +1,5 @@
 import { shellQuote } from "./lib/shell";
+import { readOnlyFlags } from "./review";
 import type { GitChanges } from "./sources/git";
 import type { TmuxLocation } from "./sources/types";
 
@@ -69,10 +70,11 @@ export interface Session extends SessionInput {
 /** Directory to open, diff or start another agent in. */
 export const workDir = (session: SessionInput) => session.root ?? session.cwd;
 
-/** The tool's own resume invocation, to run inside the session's cwd. */
-export function resumeInvocation(session: Pick<Session, "tool" | "id">): string {
+/** The tool's own resume invocation, to run inside the session's cwd. A reviewer comes back as read-only as it started. */
+export function resumeInvocation(session: Pick<Session, "tool" | "id" | "reviewOf">): string {
   const id = shellQuote(session.id);
-  return session.tool === "claude" ? `claude --resume ${id}` : `codex resume ${id}`;
+  const flags = session.reviewOf ? ` ${readOnlyFlags(session.tool)}` : "";
+  return session.tool === "claude" ? `claude --resume ${id}${flags}` : `codex resume${flags} ${id}`;
 }
 
 /** The command to pick this session up again in a fresh terminal. Copied, never run. */

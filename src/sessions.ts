@@ -33,7 +33,7 @@ function hubWindows(sessions: Session[]): HubWindow[] {
   return sessions
     .filter((s) => s.tmux && s.status !== "inactive")
     .sort((a, b) => a.tmux!.session.localeCompare(b.tmux!.session) || a.tmux!.windowIndex - b.tmux!.windowIndex)
-    .map(({ id, tool, cwd, tmux }) => ({ id, tool, cwd, name: tmux!.windowName }));
+    .map(({ id, tool, cwd, tmux, reviewOf }) => ({ id, tool, cwd, name: tmux!.windowName, ...(reviewOf ? { reviewOf } : {}) }));
 }
 
 /** Git state is only worth polling for sessions that are running. */

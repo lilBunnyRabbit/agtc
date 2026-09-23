@@ -81,11 +81,15 @@ export function writeReviewPrompt(id: string, request: ReviewRequest): string {
   return path;
 }
 
-/** A read-only reviewer: Claude with every writing tool disallowed, Codex in its read-only sandbox. */
+/** What keeps a reviewer read-only: Claude with every writing tool disallowed, Codex in its read-only sandbox. Same flags on start and on resume. */
+export function readOnlyFlags(tool: Tool): string {
+  if (tool === "codex") return "--sandbox read-only --ask-for-approval never";
+  return `--disallowedTools ${shellQuote(CLAUDE_WRITE_TOOLS.join(","))} --allowedTools ${shellQuote(CLAUDE_READ_TOOLS.join(","))}`;
+}
+
+/** A read-only reviewer on its prompt. */
 export function reviewerCommand(tool: Tool, id: string, promptPath: string): string {
   const prompt = `"$(cat ${shellQuote(promptPath)})"`;
-  if (tool === "codex") return `codex --sandbox read-only --ask-for-approval never ${prompt}`;
-  const disallowed = shellQuote(CLAUDE_WRITE_TOOLS.join(","));
-  const allowed = shellQuote(CLAUDE_READ_TOOLS.join(","));
-  return `claude ${prompt} --session-id ${id} --disallowedTools ${disallowed} --allowedTools ${allowed}`;
+  if (tool === "codex") return `codex ${readOnlyFlags(tool)} ${prompt}`;
+  return `claude ${prompt} --session-id ${id} ${readOnlyFlags(tool)}`;
 }
