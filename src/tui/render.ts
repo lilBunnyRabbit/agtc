@@ -18,7 +18,7 @@ import {
   rowSuffix,
 } from "./layout";
 import { renderGraph } from "./graph";
-import { type RenderedBody, jumpTargets, repoRule, selectionBar, statusCell } from "./rows";
+import { type Hit, type RenderedBody, jumpTargets, repoRule, rowHit, selectionBar, statusCell } from "./rows";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 export interface Prompt {
@@ -57,8 +57,8 @@ export interface Frame {
   lines: string[];
   /** Sessions in list order, so key handlers can map `selected` to a session. */
   visible: Session[];
-  /** The session drawn on each screen row (0-based), for the mouse; rules, header, detail and footer rows are undefined. */
-  hits: (Session | undefined)[];
+  /** Per screen row (0-based), the stretches that stand for a session, for the mouse; header, rules, detail and footer rows have none. */
+  hits: Hit[][];
 }
 
 const HEADER_LINES = 2; // header + blank line
@@ -71,7 +71,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
   const reviews: Reviews = { reviewerOf: liveReviewers(sessions), subjectOf: new Map(sessions.map((s) => [s.id, s])) };
 
-  const list = ui.view === "graph" ? renderGraph(visible, sessions, ui.selected, layout) : renderList(visible, ui, layout);
+  const list = ui.view === "graph" ? renderGraph(visible, ui.selected, layout) : renderList(visible, ui, layout);
   const footer = renderFooter(ui, selected, layout);
   const room = size.rows - HEADER_LINES - footer.length;
   const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
@@ -79,7 +79,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const start = scrollStart(list.lines.length, list.lineOfSelected, listHeight);
   const body = list.lines.slice(start, start + listHeight);
   const filler = Array<string>(Math.max(0, listHeight - body.length)).fill("");
-  const hits = [...Array<undefined>(HEADER_LINES), ...list.sessions.slice(start, start + listHeight)];
+  const hits = [...Array.from({ length: HEADER_LINES }, (): Hit[] => []), ...list.hits.slice(start, start + listHeight)];
 
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
   const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
@@ -140,10 +140,10 @@ function countByStatus(sessions: Session[]): Record<Status, number> {
 /** One line per session, grouped under a rule per repo. */
 function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBody {
   const lines: string[] = [];
-  const sessions: (Session | undefined)[] = [];
+  const hits: Hit[][] = [];
   const push = (line: string, session?: Session) => {
     lines.push(line);
-    sessions.push(session);
+    hits.push(rowHit(session, layout.columns));
   };
   let lineOfSelected = 0;
   let currentRepo: string | undefined;
@@ -166,7 +166,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
     const hint = ui.query ? "no sessions match" : `nothing running${ui.showInactive ? "" : " (press a to show inactive)"}`;
     push(style(`   ${hint}`, ANSI.dim));
   }
-  return { lines, sessions, lineOfSelected };
+  return { lines, hits, lineOfSelected };
 }
 
 /** The group line carries how many of its sessions want you, so a folded-away group still shows it. */

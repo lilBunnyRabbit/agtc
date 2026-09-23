@@ -4,14 +4,24 @@ import { ANSI, style, visibleLength } from "./ansi";
 import { type Layout, STATUS_WIDTH } from "./layout";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle } from "./theme";
 
+/** A stretch of one screen row that stands for a session, for the mouse. Columns are 0-based, `to` exclusive. */
+export interface Hit {
+  from: number;
+  to: number;
+  session: Session;
+}
+
 /** Lines of one view's body, with what each line stands for. */
 export interface RenderedBody {
   lines: string[];
-  /** The session each line belongs to; a repo rule or blank has none. */
-  sessions: (Session | undefined)[];
+  /** Per line, the stretches that stand for a session; a repo rule or blank has none. */
+  hits: Hit[][];
   /** Line index of the selected session, for scrolling. */
   lineOfSelected: number;
 }
+
+/** The whole row stands for one session. */
+export const rowHit = (session: Session | undefined, width: number): Hit[] => (session ? [{ from: 0, to: width, session }] : []);
 
 /** A rule per repository with the counts that want you, then how many sessions it holds. */
 export function repoRule(repo: string, sessions: Session[], layout: Layout): string {

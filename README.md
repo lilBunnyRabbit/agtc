@@ -48,15 +48,26 @@ Selected session gets a detail pane: working directory, worktree and branch, unc
 
 Sessions that want you, `input` and `done`, get a filled badge and a title in the same colour, and their group line counts them, so nothing waiting hides in a long list. The order is fixed: repos alphabetically, live sessions in the order they started, finished ones below them newest first. A status change recolours a row, it never moves it, and the selection stays on the session it was on.
 
-`tab` switches to the graph, the header's `list  graph` tabs say which is on. Same sessions, running ones only, drawn like a pipeline: the session on the left, what it spawned on the right, one line per child.
+`tab` switches to the graph, the header's `list  graph` tabs say which is on. Same sessions, running ones only, drawn like a pipeline: a box per session on the left, what it spawned in boxes to its right, arrows between them. The border takes the status colour, the selected box is drawn heavy.
 
 ```
- ▌ 1 ⎇  ✳  idle      Sidebar header overflow on iOS   ─┬ 2 ⬡  busy      review                       4m
-                                                       └   ◇  busy      Explore: callers of Header   1m
-   3    ✳  busy      Settings page safe padding       ──   ◇  done      general-purpose: run tests   2m
+ acme-platform ──────────────────────────────────────────────────────────────  4 sessions
+ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    ┌─────────────────────────────────┐
+ ┃ 1 ✳ ⎇ Sidebar header overflow   ┃─┬─▶│ 2 ⬡ review                      │
+ ┃   idle · 5m · fix/header        ┃ │  │   busy · 4m                     │
+ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │  └─────────────────────────────────┘
+                                     │  ┌─────────────────────────────────┐
+                                     └─▶│ ◇ Explore: callers of Header    │
+                                        │   busy · 1m                     │
+                                        └─────────────────────────────────┘
+
+ ┌─────────────────────────────────┐
+ │ 3 ✳ Settings page safe padding  │
+ │   busy · 2m · main              │
+ └─────────────────────────────────┘
 ```
 
-Children are the session's reviewers (`V`), selectable with every key a reviewer row has, and `◇` its subagents: agents it runs inside its own process (Claude's Agent tool, Codex collaborators), busy or finished in the last ten minutes, with their type and what they were asked. Subagents have no pane of their own, so a click on one selects the session. A pane too narrow for two columns stacks the children under their parent.
+Children are the session's reviewers (`V`), selectable with every key a reviewer row has, and `◇` its subagents: agents it runs inside its own process (Claude's Agent tool, Codex collaborators), busy or finished in the last ten minutes, with their type and what they were asked. Subagents have no pane of their own, so a click on one selects the session. A pane too narrow for two columns hangs the children under their parent.
 
 ## Keys
 

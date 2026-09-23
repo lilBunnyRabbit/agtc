@@ -47,7 +47,7 @@ export function helpText(): string {
     key("/", "search every prompt ever typed, plus worktree, branch, path, tool, status", "esc clears"),
     "",
     heading("Look"),
-    key("tab", "next view: the list, or the graph of running sessions with their reviewers and subagents to the right"),
+    key("tab", "next view: the list, or the graph: a box per running session, its reviewers and subagents in boxes to the right, border in the status colour"),
     key("d", "detail pane on / off"),
     key("a", "inactive sessions on / off"),
     key("m / M", "mark the selected / every session as seen"),

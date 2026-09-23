@@ -625,7 +625,7 @@ export class App {
   }
 
   /** Wheel moves the selection, a click selects the row under it, a second click on the same row within a moment opens it. A prompt keeps the mouse out. */
-  private handleMouse({ button, y, release }: Mouse): void {
+  private handleMouse({ button, x, y, release }: Mouse): void {
     if (this.ui.prompt || release) return;
     if (button === "wheelUp" || button === "wheelDown") {
       this.ui.selected += button === "wheelUp" ? -1 : 1;
@@ -634,7 +634,7 @@ export class App {
       return;
     }
     if (button !== "left") return;
-    const session = this.frame?.hits[y - 1];
+    const session = this.frame?.hits[y - 1]?.find((hit) => x - 1 >= hit.from && x - 1 < hit.to)?.session;
     if (!session) return;
     const now = Date.now();
     const again = this.lastClick?.id === session.id && now - this.lastClick.at < DOUBLE_CLICK_MS;
