@@ -9,7 +9,7 @@ import { collapse, plural, tildify, untildify } from "../lib/text";
 import { copyToClipboard, shellQuote } from "../lib/shell";
 import { notify } from "../notify";
 import { HOME } from "../paths";
-import { filterSessions } from "../search";
+import { VIEWS, filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
 import { codeRefs, findingsCommand, reportMessage, reviewerReport, writeReport } from "../report";
 import { restoreHub } from "../restore";
@@ -22,7 +22,8 @@ import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupT
 import { ANSI } from "./ansi";
 import { Key, type Mouse, isPrintable, parseMouse, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
-import { type Frame, type Prompt, type UiState, initialUiState, jumpTargets, renderFrame } from "./render";
+import { type Frame, type Prompt, type UiState, initialUiState, renderFrame } from "./render";
+import { jumpTargets } from "./rows";
 
 const MESSAGE_TTL_MS = 3000;
 /** Two clicks on one row this close together open it. Nothing reports a double click natively. */
@@ -212,6 +213,14 @@ export class App {
     const command = resumeCommand(session);
     copyToClipboard(command);
     this.say(`copied: ${command}`);
+  }
+
+  /** `tab`: the next view of the same sessions; the selection stays on its session when that view shows it. */
+  private switchView(): void {
+    const id = this.selected?.id;
+    this.ui.view = VIEWS[(VIEWS.indexOf(this.ui.view) + 1) % VIEWS.length];
+    const index = id ? this.visible.findIndex((s) => s.id === id) : -1;
+    this.ui.selected = Math.max(0, index);
   }
 
   /** `J` / `K`: the live row above or below, selected and staged, wrapping around. Up is j, down is k, everywhere in agtc. */
@@ -739,6 +748,9 @@ export class App {
         break;
       case "d":
         this.ui.showDetail = !this.ui.showDetail;
+        break;
+      case Key.tab:
+        this.switchView();
         break;
       case "?":
         if (OWN_PANE) return this.showHelp();

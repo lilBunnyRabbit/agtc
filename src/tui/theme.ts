@@ -8,6 +8,7 @@ export const ICON = {
   mainCheckout: "⌂",
   search: "⌕",
   review: "⌖",
+  subagent: "◇",
   child: "╰",
   selection: "▌",
   rule: "─",

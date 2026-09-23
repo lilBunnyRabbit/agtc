@@ -48,6 +48,16 @@ Selected session gets a detail pane: working directory, worktree and branch, unc
 
 Sessions that want you, `input` and `done`, get a filled badge and a title in the same colour, and their group line counts them, so nothing waiting hides in a long list. The order is fixed: repos alphabetically, live sessions in the order they started, finished ones below them newest first. A status change recolours a row, it never moves it, and the selection stays on the session it was on.
 
+`tab` switches to the graph, the header's `list  graph` tabs say which is on. Same sessions, running ones only, drawn like a pipeline: the session on the left, what it spawned on the right, one line per child.
+
+```
+ ▌ 1 ⎇  ✳  idle      Sidebar header overflow on iOS   ─┬ 2 ⬡  busy      review                       4m
+                                                       └   ◇  busy      Explore: callers of Header   1m
+   3    ✳  busy      Settings page safe padding       ──   ◇  done      general-purpose: run tests   2m
+```
+
+Children are the session's reviewers (`V`), selectable with every key a reviewer row has, and `◇` its subagents: agents it runs inside its own process (Claude's Agent tool, Codex collaborators), busy or finished in the last ten minutes, with their type and what they were asked. Subagents have no pane of their own, so a click on one selects the session. A pane too narrow for two columns stacks the children under their parent.
+
 ## Keys
 
 | key | action |
@@ -70,6 +80,7 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
+| `tab` | next view: the list, or the graph of running sessions with their reviewers and subagents |
 | `?` | the whole key reference, tmux keys and the review loop included, in a popup (`q` closes); outside tmux, the footer shows every key instead of the ones for the selected session |
 | `q` | quit |
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
@@ -222,8 +233,8 @@ In this mode start agtc with `--jump zed` (or `AGTC_JUMP=zed`): `enter` then ope
 
 No hooks, no daemons, no config. Everything is read from what the tools already write:
 
-- Claude Code: `~/.claude/sessions/<pid>.json` for live status and cwd, `~/.claude/history.jsonl` for prompts, `~/.claude/projects/<project>/<session>.jsonl`, read incrementally, for the paths a live session's tool calls touch: any tool, so shell edits count like Edit calls. The checkout most of the recent calls hit is where the session works (that is how a session that moved into a worktree is placed, and why one `cd` elsewhere does not move it). Only checkouts listed by `git worktree list` for the repository the session started in count, so writes to memory files, dotfiles or other repos never move a session, and a session whose directory vanished (Claude then reports your home as cwd) stays under its repo.
-- Codex: the `thread-writer-locks/<id>.lock` file a running `codex` holds open identifies its thread; `~/.codex/state_*.sqlite` and the thread's rollout log give title, prompts and busy/idle.
+- Claude Code: `~/.claude/sessions/<pid>.json` for live status and cwd, `~/.claude/history.jsonl` for prompts, `~/.claude/projects/<project>/<session>.jsonl`, read incrementally, for the paths a live session's tool calls touch: any tool, so shell edits count like Edit calls. Subagents from `~/.claude/projects/<project>/<session>/subagents/`: `agent-<id>.meta.json` names the type and task, the last entry of `agent-<id>.jsonl` says whether it is still working (a tool call or its result) or done (a plain message, or an interruption); the parent's tool result cannot tell, it is written when the agent launches. The checkout most of the recent calls hit is where the session works (that is how a session that moved into a worktree is placed, and why one `cd` elsewhere does not move it). Only checkouts listed by `git worktree list` for the repository the session started in count, so writes to memory files, dotfiles or other repos never move a session, and a session whose directory vanished (Claude then reports your home as cwd) stays under its repo.
+- Codex: the `thread-writer-locks/<id>.lock` file a running `codex` holds open identifies its thread; `~/.codex/state_*.sqlite` and the thread's rollout log give title, prompts and busy/idle. Collaborators a thread spawned come from its `thread_spawn_edges` table joined to `threads`, named by nickname and role since their prompts are encrypted on disk, busy or done from their own rollout.
 - Worktrees: `git rev-parse --git-dir` vs `--git-common-dir`. Changes: `git status --porcelain`, `git diff HEAD --numstat` and `git rev-list --count <base>..HEAD` against `origin/HEAD` (else `main` / `master`), every 10 s per live checkout.
 - Terminal.app via AppleScript: tab titles, which tab you are looking at (that is how "done" turns into "idle"), and focusing a tab on `enter`.
 - tmux: `list-clients` and `list-panes` map ttys to panes and tell which window is in front of an attached client. A client sitting in a Terminal.app tab counts as looking only while that tab is in front.
@@ -234,7 +245,7 @@ No hooks, no daemons, no config. Everything is read from what the tools already 
 
 agtc is read-only and offline. The full footprint:
 
-- **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
+- **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, their `<session>/subagents/agent-*.meta.json` and the tail of `agent-*.jsonl`, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
 - **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`; `f` writes the report it shows to `~/.cache/agtc/report.txt`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
 - **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first. When a poll finds a session that just turned done or needs input while its terminal is off screen, `osascript -e 'display notification …'` shows a banner with the session's title and status (`--no-notify` stops that).
 - **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's.

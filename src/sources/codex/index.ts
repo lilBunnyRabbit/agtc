@@ -1,13 +1,13 @@
 import { basename } from "node:path";
 import { collapse } from "../../lib/text";
-import { SECOND } from "../../lib/time";
-import { PROMPT_MAX_LENGTH, type SessionInput, TITLE_MAX_LENGTH } from "../../session";
+import { MINUTE, SECOND } from "../../lib/time";
+import { PROMPT_MAX_LENGTH, type SessionInput, type Subagent, TITLE_MAX_LENGTH } from "../../session";
 import { type GitInfo, gitInfo } from "../git";
 import { type ProcessInfo, processInfo } from "../processes";
 import type { SourceOptions, Surfaces } from "../types";
 import { type CodexProcess, findCodexProcesses } from "./processes";
 import { summarizeRollout } from "./rollout";
-import { type CodexThread, readCodexThreads } from "./threads";
+import { type CodexThread, readCodexThreads, readSpawnedThreads } from "./threads";
 
 /** Live Codex sessions, plus recent finished threads from the state DB. */
 export async function codexSessions({ surfaces, sinceMs }: SourceOptions): Promise<SessionInput[]> {
@@ -55,7 +55,23 @@ function liveSession(proc: CodexProcess, thread: CodexThread, git: GitInfo, info
     startedAt: info?.startedAt,
     tty,
     tmux: tty ? surfaces.get(tty)?.tmux : undefined,
+    subagents: spawnedAgents(thread.id),
   };
+}
+
+/** A finished collaborator stays in the graph this long. */
+const RECENT_MS = 10 * MINUTE;
+
+/** Collaborators a thread spawned, running or just finished. Their prompts are encrypted on disk, so the nickname and role name them. */
+function spawnedAgents(threadId: string): Subagent[] {
+  const now = Date.now();
+  return readSpawnedThreads(threadId).flatMap((child): Subagent[] => {
+    const rollout = summarizeRollout(child.rollout_path);
+    const status = rollout.status === "busy" || rollout.status === "needs input" ? "busy" : "done";
+    if (status === "done" && now - rollout.at > RECENT_MS) return [];
+    const kind = child.agent_role || (child.agent_path ? basename(child.agent_path) : undefined) || undefined;
+    return [{ id: child.id, description: child.agent_nickname || collapse(child.title, TITLE_MAX_LENGTH) || child.id.slice(0, 8), kind, status, since: rollout.at }];
+  });
 }
 
 /** A `codex` that has not sent its first message yet, so no thread exists for it. */

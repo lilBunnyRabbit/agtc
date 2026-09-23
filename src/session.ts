@@ -60,6 +60,20 @@ export interface SessionInput {
   viewed?: boolean;
   /** Id of the session this one reviews, for a reviewer started with `V`. */
   reviewOf?: string;
+  /** Agents the session spawned inside itself, running or just finished. Live sessions only. */
+  subagents?: Subagent[];
+}
+
+/** An agent a session runs inside its own process (Claude's Agent tool): no process or pane of its own, a node in the graph. */
+export interface Subagent {
+  id: string;
+  /** What it was asked to do, in the parent's words. */
+  description: string;
+  /** The agent type it runs as: Explore, general-purpose, a custom agent. */
+  kind?: string;
+  status: "busy" | "done";
+  /** When it started, or finished. */
+  since: number;
 }
 
 export interface Session extends SessionInput {

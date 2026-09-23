@@ -42,8 +42,9 @@ export function rowSuffix(age: string): string {
 
 export const BLANK_CELLS: RowCells = { bar: " ", jump: " ", worktree: " ", tool: " ", status: " ".repeat(STATUS_WIDTH) };
 
-const PREFIX_WIDTH = visibleLength(rowPrefix(BLANK_CELLS));
-const SUFFIX_WIDTH = visibleLength(rowSuffix(" ".repeat(AGE_WIDTH)));
+export const PREFIX_WIDTH = visibleLength(rowPrefix(BLANK_CELLS));
+export const SUFFIX_WIDTH = visibleLength(rowSuffix(" ".repeat(AGE_WIDTH)));
+export const RIGHT_MARGIN_WIDTH = RIGHT_MARGIN.length;
 
 export interface Size {
   columns: number;

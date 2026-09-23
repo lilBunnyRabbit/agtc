@@ -2,7 +2,7 @@ import pkg from "../../package.json";
 import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
-import { filterSessions, matchSnippet } from "../search";
+import { VIEWS, type View, filterSessions, matchSnippet } from "../search";
 import { type Session, type Status, STATUSES, type Tool } from "../session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import {
@@ -17,6 +17,8 @@ import {
   rowPrefix,
   rowSuffix,
 } from "./layout";
+import { renderGraph } from "./graph";
+import { type RenderedBody, jumpTargets, repoRule, selectionBar, statusCell } from "./rows";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 export interface Prompt {
@@ -29,6 +31,8 @@ export interface Prompt {
 export interface UiState {
   /** Label for the enter key in the footer. */
   enterHint: string;
+  /** How the sessions are drawn: rows, or a graph of who spawned or reviews whom. `tab` cycles. */
+  view: View;
   /** Index into the visible (filtered) list. */
   selected: number;
   showInactive: boolean;
@@ -46,7 +50,7 @@ export interface UiState {
 }
 
 export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
-  return { enterHint, selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
+  return { enterHint, view: "list", selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
 }
 
 export interface Frame {
@@ -58,8 +62,6 @@ export interface Frame {
 }
 
 const HEADER_LINES = 2; // header + blank line
-/** How many live rows get a digit: one key each. */
-const JUMP_KEYS = 9;
 const MIN_LIST_LINES = 3;
 const MAX_EXTRA_ROOTS = 2;
 
@@ -69,7 +71,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const selected = visible[ui.selected];
   const reviews: Reviews = { reviewerOf: liveReviewers(sessions), subjectOf: new Map(sessions.map((s) => [s.id, s])) };
 
-  const list = renderList(visible, ui, layout);
+  const list = ui.view === "graph" ? renderGraph(visible, sessions, ui.selected, layout) : renderList(visible, ui, layout);
   const footer = renderFooter(ui, selected, layout);
   const room = size.rows - HEADER_LINES - footer.length;
   const detail = ui.showDetail && selected ? fittingDetail(selected, layout, room - MIN_LIST_LINES, reviews) : [];
@@ -82,11 +84,6 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
   const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible, hits };
-}
-
-/** The live sessions the digit keys stage, in list order: row 1 is the first live row on screen. */
-export function jumpTargets(visible: Session[]): Session[] {
-  return visible.filter((s) => s.status !== "inactive").slice(0, JUMP_KEYS);
 }
 
 /** Who reviews whom, for the marker on a reviewed row and the lines in the detail pane. */
@@ -118,12 +115,18 @@ function renderHeader(sessions: Session[], visible: Session[], ui: UiState, layo
   const tools = `${toolIcon("claude")} ${liveCount("claude")}  ${toolIcon("codex")} ${liveCount("codex")}`;
   const refreshed = style(`   refreshed ${relativeAge(ui.refreshedAt)} ago`, ANSI.dim);
   const matches = ui.query ? `   ${style(`${ICON.search} "${ui.query}" ${plural(visible.length, "match", "matches")}`, ANSI.yellow)}` : "";
+  const tabs = `   ${viewTabs(ui.view)}`;
 
-  const wide = ` ${title}   ${tools}     ${STATUSES.map((s) => badge(s, s)).join("   ")}${refreshed}${matches}`;
+  const wide = ` ${title}   ${tools}     ${STATUSES.map((s) => badge(s, s)).join("   ")}${refreshed}${matches}${tabs}`;
   if (visibleLength(wide) <= layout.columns) return wide;
   const badges = STATUSES.map((s) => badge(s, STATUS_LABEL[s])).join("  ");
-  const compact = ` ${title}  ${tools}   ${badges}${matches}`;
-  return visibleLength(compact) <= layout.columns ? compact : ` ${title}  ${badges}${matches}`;
+  const compact = ` ${title}  ${tools}   ${badges}${matches}${tabs}`;
+  return visibleLength(compact) <= layout.columns ? compact : ` ${title}  ${badges}${matches}${tabs}`;
+}
+
+/** The view switcher: every view's name, the current one lit. */
+function viewTabs(view: View): string {
+  return VIEWS.map((v) => (v === view ? style(` ${v} `, ANSI.reverse) : style(` ${v} `, ANSI.dim))).join("");
 }
 
 function countByStatus(sessions: Session[]): Record<Status, number> {
@@ -134,16 +137,8 @@ function countByStatus(sessions: Session[]): Record<Status, number> {
 
 // ---------------------------------------------------------------- list
 
-interface RenderedList {
-  lines: string[];
-  /** The session each line belongs to; a repo rule or blank has none. */
-  sessions: (Session | undefined)[];
-  /** Line index of the selected session, for scrolling. */
-  lineOfSelected: number;
-}
-
 /** One line per session, grouped under a rule per repo. */
-function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedList {
+function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBody {
   const lines: string[] = [];
   const sessions: (Session | undefined)[] = [];
   const push = (line: string, session?: Session) => {
@@ -175,21 +170,6 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedLi
 }
 
 /** The group line carries how many of its sessions want you, so a folded-away group still shows it. */
-function repoRule(repo: string, sessions: Session[], layout: Layout): string {
-  const label = ` ${repo} `;
-  const waiting = (["needs input", "done"] as const)
-    .map((status) => [status, sessions.filter((s) => s.status === status).length] as const)
-    .filter(([, n]) => n > 0)
-    .map(([status, n]) => style(` ${n} ${STATUS_LABEL[status]} `, ...statusStyle(status), ANSI.reverse));
-  const summary = `${waiting.length ? ` ${waiting.join(" ")}` : ""} ${style(plural(sessions.length, "session", "sessions"), ANSI.dim)}`;
-  const rule = ICON.rule.repeat(Math.max(0, layout.columns - label.length - visibleLength(summary) - 1));
-  return style(label, ANSI.bold, ANSI.cyan) + style(rule, ANSI.dim) + summary;
-}
-
-function selectionBar(isSelected: boolean): string {
-  return isSelected ? style(ICON.selection, ANSI.cyan) : " ";
-}
-
 /**
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
@@ -205,9 +185,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
     jump: digit ? style(digit, isSelected ? ANSI.cyan : ANSI.dim) : " ",
     worktree: session.worktree && !nested ? worktreeIcon(inactive) : " ",
     tool: toolIcon(session.tool, inactive),
-    status: attention
-      ? style(padRight(` ${STATUS_LABEL[session.status]}`, STATUS_WIDTH), ...statusStyle(session.status), ANSI.reverse)
-      : style(padRight(STATUS_LABEL[session.status], STATUS_WIDTH), ...statusStyle(session.status)),
+    status: statusCell(session.status),
   });
   const title = padRight(underSubject ? "review" : session.title, layout.titleWidth - visibleLength(branch));
   const styledTitle = isSelected
@@ -395,6 +373,7 @@ function allKeys(ui: UiState): string[] {
     "M all seen",
     "c copy resume",
     "r refresh",
+    `tab view:${ui.view}`,
     `a inactive:${onOff(ui.showInactive)}`,
     `d detail:${onOff(ui.showDetail)}`,
     "q quit",

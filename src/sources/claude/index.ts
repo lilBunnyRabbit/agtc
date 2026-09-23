@@ -5,6 +5,7 @@ import { processInfo } from "../processes";
 import type { SourceOptions, Surfaces } from "../types";
 import { type ClaudeHistory, readClaudeHistory } from "./history";
 import { type ClaudeRegistration, readClaudeRegistry } from "./registry";
+import { claudeSubagents } from "./subagents";
 import { type TranscriptActivity, transcriptActivity } from "./transcript";
 
 /** Claude animates one of these at the start of the tab title while it works. */
@@ -100,6 +101,7 @@ function liveSession(
     startedAt: registration.startedAt,
     tty,
     tmux: surface?.tmux,
+    subagents: claudeSubagents(registration.sessionId, registration.cwd),
   };
 }
 

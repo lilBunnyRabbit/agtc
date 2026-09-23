@@ -26,58 +26,38 @@ agents, layouts across monitors, or dropping the agent TUI for an SDK-driven cha
 
 ## Tasks
 
-### 1. Notify when an agent needs me
+All six shipped on 2026-09-23, unreleased. What each left behind:
 
-`osascript -e 'display notification "…" with title "agtc"'` works from inside tmux in
-Terminal.app on macOS 26 (tested and seen 2026-09-23, exit 0, banner shown). Zero deps.
+1. Notifications: `osascript` banner, default on, `--no-notify` / `AGTC_NOTIFY=0`. Fires on the
+   poll that sees a session turn done or needs input while its terminal is off screen. The
+   OSC 9 / 777 fallbacks are not built; osascript works in Terminal.app and inside tmux.
+2. Reviewer beside the subject: `V` splits the subject's pane. The stage moves whole windows
+   now (`focusTmuxPane`): a pane brings its siblings, several staged panes leave together.
+   The one-pane case still swaps, so a resized stage keeps its width there and resets in the
+   group case.
+3. `f`: report popup, `less`, numbered `path:line` references, `q` then the number opens it in
+   the editor. Two keystrokes because `less` has no hook on the current line; a native report
+   view would make it one.
+4. Read-only resume: `readOnlyFlags` shared by the fresh command and `R` / `S` / `c`;
+   `HubWindow.reviewOf` carries it across restarts.
+5. Views: `ui.view` mode flag, not the shell/view split of cockpit decision 1. Same data, same
+   keys, only the body renderer differs, so the flag is the right weight; the split is still
+   the plan for views with their own data (quno, ot). `tab` cycles, digits stay jump keys.
+   Graph: `src/tui/graph.ts`, one level deep. Subagents from `subagents/agent-*.meta.json` plus
+   the log tail (`src/sources/claude/subagents.ts`); Codex from `thread_spawn_edges`.
+   Verified 2026-09-23: agentId is unrelated to the `toolu_` id, the meta file carries
+   `toolUseId`, `agentType`, `description`, `spawnDepth`; the parent's tool result says
+   `async_launched` at launch and never changes, so the agent log's last entry is the only
+   liveness signal. Not shown: depth-2 agents (an agent's agents), finished agents older than
+   ten minutes. Codex child threads also appear as inactive sessions in the list; they have
+   no process of their own.
+6. Mouse: SGR 1000/1006, hit map per frame, click selects, double click stages, wheel moves
+   the selection. Legacy X10 reports are consumed so a stray byte never reads as `q`.
 
-- Fire on the transitions the refresh loop already sees: a session turns `done` unseen, a session
-  turns `needs input`. `--bell` is the existing hook at the same spot; make it `--notify` or
-  default on with macOS detection.
-- Title is the session title, subtitle the status, no body. Skip when the agent's pane is the
-  active tmux pane (I am looking at it).
-- Fallbacks if osascript stops working: OSC 9 / OSC 777 escapes (Ghostty, Kitty, WezTerm,
-  iTerm2, not Terminal.app; through tmux needs `allow-passthrough`), tmux `display-message`.
+## Next
 
-### 2. Reviewer beside the subject
-
-`V` opens the reviewer in its own window. Open it as a split of the subject's window instead
-(`split-window -h -t <subject pane>`), so the visual tie is literal and both are on screen.
-The `╰ review` row stays. Jump keys target panes, so they keep working. `x` kills the pane
-either way. Check `newTmuxWindow` for what a split variant needs (cwd, name, pane id return).
-
-### 3. Findings popup
-
-The reviewer's report is only read by pasting it into the subject. Add a popup that shows the
-last report (`reviewerReport` already extracts it) in `less -R`, and a key that opens a
-`file:line` from it in Zed. Same popup mechanism as `?`.
-
-### 4. Restored reviewer must stay read-only
-
-`S` and `R` run plain `claude --resume <id>`, so a restored reviewer gets Edit and Write back.
-Re-add the reviewer flags (`reviewerCommand` knows them) when the session has `reviewOf`.
-`HubWindow` needs `reviewOf`, or look the id up in the stored review links.
-
-### 5. Views: list, then a graph
-
-Switchable views of the same sessions. Per `cockpit.md` decision 2: a tab line in the header,
-number keys or `tab` to cycle, zero width cost.
-
-Graph view, the one that matters: nodes are sessions, edges are review links and subagents,
-drawn like a CI pipeline (parent left, children right, status colour per node, live only).
-Hand-rolled with box drawing like the list; there is no terminal graph lib worth a dep.
-
-Subagent data exists on disk for Claude: `~/.claude/projects/<slug>/<sessionId>/subagents/agent-<agentId>.jsonl`,
-entries carry `isSidechain: true`, `agentId`, `parentUuid`. The parent transcript has the
-`tool_use` block (name `Agent`, input has `description` and `subagent_type`). Still to verify:
-how a `tool_use` id maps to the `agentId` file name, and whether a running subagent can be told
-apart from a finished one (file mtime, or a matching `tool_result` in the parent). Codex:
-unknown whether spawned agents leave files; check rollouts for spawn or collab events.
-
-### 6. Mouse
-
-Double click on a row opens it (same as enter), single click selects, wheel scrolls. Per
-`cockpit.md` decision 3: SGR mouse (`?1000;1006`), events parsed in `splitKeys`, a hit map
-per frame. tmux already has `mouse on` for the hub and forwards events to an app that asked
-for them. Double click is two clicks on the same row within about 300 ms; nothing reports it
-natively.
+- Depth-2 subagents as a third column, or indented under their agent, once a session with
+  them is on screen often enough to matter.
+- Notify on a reviewer finishing with the subject's title, not "review of …", if the banner
+  reads worse than expected.
+- Release 1.6.0 after a day of use.
