@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 import { agentIn } from "./lookup";
-import { succeeds } from "./lib/shell";
+import { pasteIntoPane } from "./sources/tmux";
 
 export interface SendOptions {
   dir: string;
@@ -29,10 +29,7 @@ export async function sendToAgent({ dir, file, row, selection }: SendOptions): P
     console.log("nothing to send: pass --file, --row or a selection in AGTC_SELECTION");
     return 1;
   }
-  const buffer = `agtc-${process.pid}`;
-  const loaded = Bun.spawnSync(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: new TextEncoder().encode(text) }).exitCode === 0;
-  const pasted = loaded && (await succeeds(["tmux", "paste-buffer", "-p", "-d", "-b", buffer, "-t", agent.tmux.paneId]));
-  if (!pasted) {
+  if (!(await pasteIntoPane(agent.tmux.paneId, text))) {
     console.log(`could not paste into tmux pane ${agent.tmux.paneId}`);
     return 1;
   }

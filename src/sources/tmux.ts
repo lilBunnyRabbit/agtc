@@ -116,6 +116,13 @@ export async function newTmuxWindow(cwd: string, command: string, session?: stri
   return paneId;
 }
 
+/** Types `text` into a pane's input as a bracketed paste, so newlines do not submit. */
+export async function pasteIntoPane(paneId: string, text: string): Promise<boolean> {
+  const buffer = `agtc-${process.pid}`;
+  const loaded = Bun.spawnSync(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: new TextEncoder().encode(text) }).exitCode === 0;
+  return loaded && succeeds(["tmux", "paste-buffer", "-p", "-d", "-b", buffer, "-t", paneId]);
+}
+
 /** Runs a shell command in a popup over agtc's own client. The popup closes when it exits. */
 export function tmuxPopup(cwd: string, command: string, title: string): Promise<boolean> {
   return succeeds(["tmux", "display-popup", "-E", "-d", cwd, "-w", POPUP_SIZE, "-h", POPUP_SIZE, "-T", ` ${title} `, command]);

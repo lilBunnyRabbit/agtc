@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { parseJsonLine, readLinesFrom } from "../../lib/files";
+import { parseJsonLine, readLinesFrom, readTailLines } from "../../lib/files";
 import { CLAUDE_DIR, HOME } from "../../paths";
 
 /** Where a session has been working, read from its transcript as it grows. */
@@ -14,13 +14,15 @@ export interface TranscriptActivity {
 }
 
 interface TranscriptLine {
+  type?: string;
   cwd?: string;
   message?: { content?: unknown };
 }
 
-interface ToolUseBlock {
+interface ContentBlock {
   type?: string;
   input?: unknown;
+  text?: string;
 }
 
 interface ScanState {
@@ -34,6 +36,8 @@ const PROJECTS_DIR = join(CLAUDE_DIR, "projects");
 /** How far back a transcript is read the first time it is seen. */
 const FIRST_READ_BYTES = 1024 * 1024;
 const KEEP_PATHS = 40;
+/** How far back a transcript is read for the last message; a long report with its tool calls fits. */
+const REPORT_TAIL_BYTES = 512 * 1024;
 const MAX_DEPTH = 4;
 /** Absolute, home-relative or plain relative paths with at least one separator. */
 const PATH_TOKEN = /(?:~|\.{1,2}|[\w.@+-]+)?(?:\/[\w.@+-]+)+/g;
@@ -80,7 +84,7 @@ function pathsOnLine(line: string, fallbackCwd: string): string[] {
   if (!Array.isArray(content)) return [];
   const cwd = entry?.cwd ?? fallbackCwd;
   const paths = new Set<string>();
-  for (const block of content as ToolUseBlock[]) {
+  for (const block of content as ContentBlock[]) {
     if (block?.type !== "tool_use") continue;
     for (const token of pathTokens(block.input, 0)) paths.add(token.startsWith("~") ? join(HOME, token.slice(1)) : resolve(cwd, token));
     paths.add(cwd);
@@ -94,8 +98,34 @@ function pathTokens(value: unknown, depth: number): string[] {
   return Object.values(value).flatMap((v) => pathTokens(v, depth + 1));
 }
 
+/**
+ * The assistant's last complete message: its text blocks since its last tool call. Nothing
+ * while a turn is under way or after a prompt it has not answered yet.
+ */
+export function lastAssistantMessage(sessionId: string, cwd: string): string | undefined {
+  const path = transcriptPath(sessionId, cwd);
+  if (!path) return undefined;
+  const texts: string[] = [];
+  for (const line of readTailLines(path, REPORT_TAIL_BYTES).reverse()) {
+    const entry = parseJsonLine<TranscriptLine>(line);
+    if (!entry || (entry.type !== "assistant" && entry.type !== "user")) continue;
+    if (entry.type === "user") break;
+    const content = entry.message?.content;
+    if (typeof content === "string") {
+      texts.unshift(content);
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    const blocks = content as ContentBlock[];
+    if (blocks.some((block) => block?.type === "tool_use")) break;
+    for (const block of blocks.reverse()) if (block?.type === "text" && block.text) texts.unshift(block.text);
+  }
+  const text = texts.join("\n\n").trim();
+  return text || undefined;
+}
+
 /** ~/.claude/projects/<slug of cwd>/<id>.jsonl, or wherever else the id turns up. */
-function transcriptPath(sessionId: string, cwd: string): string | undefined {
+export function transcriptPath(sessionId: string, cwd: string): string | undefined {
   const known = pathById.get(sessionId);
   if (known) return known;
   const guess = join(PROJECTS_DIR, projectSlug(cwd), `${sessionId}.jsonl`);

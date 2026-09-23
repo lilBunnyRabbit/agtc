@@ -13,8 +13,11 @@ export interface RolloutSummary {
 
 interface RolloutEvent {
   timestamp?: string;
-  payload?: { type?: string; message?: unknown };
+  payload?: { type?: string; message?: unknown; last_agent_message?: unknown };
 }
+
+/** How far back a rollout is read for the last message; a long report with its tool calls fits. */
+const REPORT_TAIL_BYTES = 512 * 1024;
 
 /** Current status and recent prompts from the tail of a thread's rollout .jsonl. */
 export function summarizeRollout(path: string): RolloutSummary {
@@ -44,4 +47,16 @@ export function summarizeRollout(path: string): RolloutSummary {
   }
 
   return { ...(outcome ?? { status: "idle", at: Date.now() }), prompts, lastPromptAt };
+}
+
+/** The agent's last complete message, as the turn's `task_complete` recorded it. Nothing while a turn is under way. */
+export function lastAgentMessage(path: string): string | undefined {
+  for (const line of readTailLines(path, REPORT_TAIL_BYTES).reverse()) {
+    const type = parseJsonLine<RolloutEvent>(line)?.payload?.type;
+    if (type === "task_started") return undefined;
+    if (type !== "task_complete") continue;
+    const message = parseJsonLine<RolloutEvent>(line)?.payload?.last_agent_message;
+    return typeof message === "string" && message.trim() ? message.trim() : undefined;
+  }
+  return undefined;
 }

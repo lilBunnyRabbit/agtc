@@ -9,13 +9,14 @@ import { copyToClipboard } from "../lib/shell";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
+import { reportMessage, reviewerReport } from "../report";
 import { restoreHub } from "../restore";
 import { reviewerCommand, reviewerFor, writeReviewPrompt } from "../review";
 import { type Session, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
-import { OWN_PANE, focusTmuxPane, newTmuxWindow, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
+import { OWN_PANE, focusTmuxPane, newTmuxWindow, pasteIntoPane, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
 import { ANSI } from "./ansi";
 import { Key, isPrintable, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
@@ -275,10 +276,6 @@ export class App {
    * so not even memory does.
    */
   private startReviewer(session: Session): void {
-    if (session.reviewOf) {
-      this.say("this is a reviewer: V on the session it reviews starts another");
-      return;
-    }
     const running = this.sessions.find((s) => s.reviewOf === session.id && s.status !== "inactive");
     if (running) {
       this.say(`${running.tool} is still reviewing this: quit it first`);
@@ -320,6 +317,47 @@ export class App {
     });
     if (!paneId) return;
     this.seen.rememberReview({ id: tool === "claude" ? id : undefined, pane: paneId, of: session.id, at: Date.now() });
+  }
+
+  /**
+   * `V` on a reviewer: its last message goes into the reviewed session's input, unsent, for
+   * you to read and pass on. A session the paste cannot reach gets it on the clipboard.
+   */
+  private reportFindings(reviewer: Session): void {
+    const subject = this.sessions.find((s) => s.id === reviewer.reviewOf);
+    if (!subject) {
+      this.say("the reviewed session is not in the list");
+      return;
+    }
+    if (reviewer.status === "busy") {
+      this.say("reviewer still working");
+      return;
+    }
+    if (reviewer.status === "needs input") {
+      this.say("reviewer is waiting on you: enter to answer it");
+      return;
+    }
+    const report = reviewerReport(reviewer);
+    if (!report) {
+      this.say("no report yet: the reviewer has not finished a turn");
+      return;
+    }
+    const text = reportMessage(reviewer, report);
+    this.markSeen(reviewer);
+    if (subject.status === "inactive" || !subject.tmux) {
+      copyToClipboard(text);
+      this.say(subject.status === "inactive" ? "report copied: R resumes the session, then paste" : `report copied: "${collapse(subject.title, 40)}" runs outside tmux, paste it there`);
+      return;
+    }
+    const { paneId } = subject.tmux;
+    void pasteIntoPane(paneId, text).then(async (ok) => {
+      if (!ok) {
+        this.say(`could not paste into tmux pane ${paneId}`);
+        return;
+      }
+      this.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
+      await this.showPane(paneId);
+    });
   }
 
   /** Every checkout the list knows: the session's own, the rest of its repository, then the other repositories. */
@@ -577,7 +615,7 @@ export class App {
         if (session) this.review(session);
         return;
       case "V":
-        if (session) this.startReviewer(session);
+        if (session) session.reviewOf ? this.reportFindings(session) : this.startReviewer(session);
         return;
       case "n":
         if (session) this.newAgent(session);
