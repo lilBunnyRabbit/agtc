@@ -11,7 +11,7 @@ import { notify } from "../notify";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
-import { reportMessage, reviewerReport } from "../report";
+import { codeRefs, findingsCommand, reportMessage, reviewerReport, writeReport } from "../report";
 import { restoreHub } from "../restore";
 import { resolveSpec, reviewerCommand, reviewerFor, specPath, specRequest, writeReviewPrompt } from "../review";
 import { type Session, type Status, type Tool, isTool, resumeCommand, resumeInvocation, workDir } from "../session";
@@ -379,7 +379,7 @@ export class App {
       return;
     }
     if (session.status === "done") {
-      this.say("unread report: V hands it over, m drops it, then x");
+      this.say("unread report: V hands it over, f shows it, m drops it, then x");
       return;
     }
     const { paneId } = session.tmux;
@@ -449,6 +449,35 @@ export class App {
       if (where === "pane") this.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
       else if (where === "clipboard") this.say(subject.status === "inactive" ? "report copied: R resumes the session, then paste" : `report copied: "${collapse(subject.title, 40)}" runs outside tmux, paste it there`);
     });
+  }
+
+  /** `f`: the reviewer's last report in a popup, references numbered so one keystroke opens them in the editor. On a reviewed session, its latest reviewer's. */
+  private showFindings(session: Session): void {
+    if (!OWN_PANE) {
+      this.say("f needs agtc inside tmux: run `agtc tmux`");
+      return;
+    }
+    const reviewer = session.reviewOf ? session : this.latestReviewer(session);
+    if (!reviewer) {
+      this.say("no reviewer for this session: V starts one");
+      return;
+    }
+    const report = reviewerReport(reviewer);
+    if (!report) {
+      this.say(reviewer.status === "busy" ? "reviewer still working" : "no report yet: the reviewer has not finished a turn");
+      return;
+    }
+    this.markSeen(reviewer);
+    const dir = workDir(reviewer);
+    const refs = codeRefs(report, dir);
+    const path = writeReport(reviewer, report, refs);
+    void tmuxPopup(dir, findingsCommand(path, refs, dir), `${reviewer.tool} review · q closes`).then((ok) => this.say(ok ? "" : "could not open popup"));
+  }
+
+  /** The reviewer of a session whose report is current: a running one, else the last to run. */
+  private latestReviewer(session: Session): Session | undefined {
+    const live = (s: Session) => Number(s.status !== "inactive");
+    return this.sessions.filter((s) => s.reviewOf === session.id).sort((a, b) => live(b) - live(a) || b.since - a.since)[0];
   }
 
   /** Every checkout the list knows: the session's own, the rest of its repository, then the other repositories. */
@@ -711,6 +740,9 @@ export class App {
         return;
       case "x":
         if (session) this.closeReviewer(session);
+        return;
+      case "f":
+        if (session) this.showFindings(session);
         return;
       case "J":
         return this.jumpBy(-1);
