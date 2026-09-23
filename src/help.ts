@@ -64,7 +64,7 @@ export function helpText(): string {
     key("c", "copy its resume command"),
     "",
     heading("Review loop"),
-    key("V", "start a read-only reviewer. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),
+    key("V", "start a read-only reviewer in a pane beside the session's. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),
     key(onReview("V"), "paste the reviewer's report into the reviewed session's input, unsent; read it there, then enter"),
     key(onReview("enter"), "see what it says, answer its questions"),
     key(onReview("x"), "close it", "refused while its report is unread: V or m first"),

@@ -83,34 +83,78 @@ export async function tmuxPanes(tabs: Surfaces): Promise<Surfaces> {
 
 /**
  * Shows a pane. Inside tmux, agtc's window is the hub: the pane takes the stage next to agtc
- * and whatever was on stage goes back to a window of its own. Outside tmux the pane's window
- * is selected in its session.
+ * and whatever was on stage goes back to a window of its own. A pane brings the rest of its
+ * window along (a reviewer split beside its subject), and a stage of several panes leaves
+ * together. Outside tmux the pane's window is selected in its session.
  */
 export async function focusTmuxPane(paneId: string, stagePercent: number): Promise<boolean> {
   if (!OWN_PANE) {
     return (await succeeds(["tmux", "select-window", "-t", paneId])) && succeeds(["tmux", "select-pane", "-t", paneId]);
   }
-  const hubPanes = (await tmux("list-panes", "-t", OWN_PANE, "-F", "#{pane_id}")).split("\n");
+  const hubPanes = await panesOf(OWN_PANE);
   if (hubPanes.includes(paneId)) return succeeds(["tmux", "select-pane", "-t", paneId]);
 
   // The pane's window is lost once it leaves, so remember the name for the trip back.
+  const incoming = await panesOf(paneId);
   const name = await tmux("display", "-p", "-t", paneId, "#{window_name}");
-  await succeeds(["tmux", "set-option", "-p", "-t", paneId, WINDOW_NAME_OPTION, name]);
+  for (const pane of incoming) await succeeds(["tmux", "set-option", "-p", "-t", pane, WINDOW_NAME_OPTION, name]);
 
-  const staged = hubPanes.find((id) => id && id !== OWN_PANE);
-  if (!staged) return succeeds(["tmux", "join-pane", "-h", "-l", `${stagePercent}%`, "-s", paneId, "-t", OWN_PANE]);
+  const staged = hubPanes.filter((id) => id !== OWN_PANE);
+  if (staged.length === 1 && incoming.length === 1) {
+    // Swapping keeps the hub layout as the user left it; the old stage inherits the newcomer's window.
+    const [stagedName, stagedPath] = await stagedWindowName(staged[0]);
+    if (!(await succeeds(["tmux", "swap-pane", "-Z", "-s", paneId, "-t", staged[0]]))) return false;
+    await succeeds(["tmux", "rename-window", "-t", staged[0], stagedName || basename(stagedPath)]);
+    return succeeds(["tmux", "select-pane", "-t", paneId]);
+  }
 
-  // Swapping keeps the hub layout as the user left it; the old stage inherits the newcomer's window.
-  const [stagedName, stagedPath] = (await tmux("display", "-p", "-t", staged, `#{${WINDOW_NAME_OPTION}}${SEP}#{pane_current_path}`)).split(SEP);
-  if (!(await succeeds(["tmux", "swap-pane", "-Z", "-s", paneId, "-t", staged]))) return false;
-  await succeeds(["tmux", "rename-window", "-t", staged, stagedName || basename(stagedPath)]);
+  if (staged.length) await unstage(staged);
+  // Panes join in their window's order, so a reviewer stays right of its subject whichever one was asked for.
+  const [first, ...rest] = incoming;
+  if (!(await succeeds(["tmux", "join-pane", "-d", "-h", "-l", `${stagePercent}%`, "-s", first, "-t", OWN_PANE]))) return false;
+  await joinBeside(first, rest);
   return succeeds(["tmux", "select-pane", "-t", paneId]);
+}
+
+/** Every pane of the window holding `pane`, in layout order. */
+async function panesOf(pane: string): Promise<string[]> {
+  return (await tmux("list-panes", "-t", pane, "-F", "#{pane_id}")).split("\n").filter(Boolean);
+}
+
+/** The name a staged pane's window had, and the pane's path for when there is none. */
+async function stagedWindowName(pane: string): Promise<[name: string, path: string]> {
+  const [name, path] = (await tmux("display", "-p", "-t", pane, `#{${WINDOW_NAME_OPTION}}${SEP}#{pane_current_path}`)).split(SEP);
+  return [name, path];
+}
+
+/** The stage leaves the hub for a window of its own, panes side by side as they were. */
+async function unstage([first, ...rest]: string[]): Promise<void> {
+  const [name, path] = await stagedWindowName(first);
+  await succeeds(["tmux", "break-pane", "-d", "-s", first, "-n", name || basename(path)]);
+  await joinBeside(first, rest);
+}
+
+/** Lines `panes` up to the right of `pane`, each next to the last. */
+async function joinBeside(pane: string, panes: string[]): Promise<void> {
+  let left = pane;
+  for (const next of panes) {
+    await succeeds(["tmux", "join-pane", "-d", "-h", "-s", next, "-t", left]);
+    left = next;
+  }
 }
 
 /** Opens a shell in `cwd` in a new window and types `command` into it. Returns the pane id. */
 export async function newTmuxWindow(cwd: string, command: string, session?: string, name = basename(cwd)): Promise<string | undefined> {
   const target = session ? ["-t", `${session}:`] : [];
   const paneId = await tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", cwd, "-n", name, ...target);
+  if (!paneId) return undefined;
+  await succeeds(["tmux", "send-keys", "-t", paneId, command, "Enter"]);
+  return paneId;
+}
+
+/** Opens a shell in `cwd` beside `pane`, in the same window, and types `command` into it. Returns the new pane id. */
+export async function splitPane(pane: string, cwd: string, command: string): Promise<string | undefined> {
+  const paneId = await tmux("split-window", "-d", "-h", "-P", "-F", "#{pane_id}", "-c", cwd, "-t", pane);
   if (!paneId) return undefined;
   await succeeds(["tmux", "send-keys", "-t", paneId, command, "Enter"]);
   return paneId;

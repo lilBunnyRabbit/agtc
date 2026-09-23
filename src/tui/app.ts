@@ -18,7 +18,7 @@ import { type Session, type Status, type Tool, isTool, resumeCommand, resumeInvo
 import { asSeen, collectSessions } from "../sessions";
 import { baseBranch, checkoutName, createWorktree } from "../sources/git";
 import { focusTerminalTab } from "../sources/terminal";
-import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupTmux, tmuxHasSession, tmuxPopup } from "../sources/tmux";
+import { OWN_PANE, focusTmuxPane, killPane, newTmuxWindow, pasteIntoPane, setupTmux, splitPane, tmuxHasSession, tmuxPopup } from "../sources/tmux";
 import { ANSI } from "./ansi";
 import { Key, isPrintable, splitKeys } from "./keys";
 import { terminalSize } from "./layout";
@@ -37,6 +37,8 @@ interface Launch {
   command?: string;
   /** Window name. Default: the checkout's name. */
   name?: string;
+  /** A pane to open next to, in its window, instead of a window of its own. */
+  beside?: string;
   /** Appended to the "started" message. */
   note?: string;
 }
@@ -319,7 +321,7 @@ export class App {
   /**
    * `V`: a second agent reads the session's work against its spec and reports, read-only. Its
    * process is fresh, so the author's reasoning never reaches it; the other tool by default,
-   * so not even memory does.
+   * so not even memory does. It opens beside the session's pane, so both are on screen.
    */
   private startReviewer(session: Session): void {
     const running = this.sessions.find((s) => s.reviewOf === session.id && s.status !== "inactive");
@@ -412,6 +414,7 @@ export class App {
       tmuxSession,
       command: reviewerCommand(tool, id, promptPath),
       name: `${await checkoutName(dir)} review`,
+      beside: session.tmux?.paneId,
       note: ` to review "${collapse(session.title, 40)}"`,
     });
     if (!paneId) return;
@@ -459,11 +462,11 @@ export class App {
     return [...dirs].filter((dir) => existsSync(dir));
   }
 
-  /** Opens a tmux window in `dir` running `command` (the bare tool by default) and shows it. Returns the pane id. */
-  private async startAgent({ tool, dir, tmuxSession, command = tool, name, note = "" }: Launch): Promise<string | undefined> {
-    const paneId = await newTmuxWindow(dir, command, tmuxSession, name ?? (await checkoutName(dir)));
+  /** Opens a tmux pane in `dir` running `command` (the bare tool by default) and shows it: a window, or a split beside `beside`. Returns the pane id. */
+  private async startAgent({ tool, dir, tmuxSession, command = tool, name, beside, note = "" }: Launch): Promise<string | undefined> {
+    const paneId = beside ? await splitPane(beside, dir, command) : await newTmuxWindow(dir, command, tmuxSession, name ?? (await checkoutName(dir)));
     if (!paneId) {
-      this.say(`could not open tmux window in ${tildify(dir, HOME)}`);
+      this.say(`could not open tmux ${beside ? "pane" : "window"} in ${tildify(dir, HOME)}`);
       return undefined;
     }
     this.say(`started ${tool} in ${tildify(dir, HOME)}${note}`);
