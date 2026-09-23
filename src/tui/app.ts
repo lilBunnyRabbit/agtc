@@ -6,7 +6,7 @@ import { openInEditor } from "../editor";
 import { writeHelp } from "../help";
 import { HUB_SESSION } from "../hub";
 import { collapse, plural, tildify, untildify } from "../lib/text";
-import { copyToClipboard, run, shellQuote } from "../lib/shell";
+import { copyToClipboard, shellQuote } from "../lib/shell";
 import { HOME } from "../paths";
 import { filterSessions } from "../search";
 import type { SeenStore } from "../seen-store";
@@ -501,50 +501,6 @@ export class App {
     await this.startAgent({ tool: session.tool, dir, tmuxSession, note: ` (${branch} from ${base})` });
   }
 
-  /**
-   * `P`: the moment work leaves the machine, so it is a key and it checks first. Pushes the
-   * checkout's branch and opens its pull request in the browser, existing or new, in a popup
-   * that waits for enter so a refusal from git or gh can be read.
-   */
-  private pushAndOpenPr(session: Session): void {
-    if (!OWN_PANE) {
-      this.say("P needs agtc inside tmux: run `agtc tmux`");
-      return;
-    }
-    if (!session.root) {
-      this.say("not a git checkout");
-      return;
-    }
-    const dir = this.existingWorkDir(session);
-    if (!dir) return;
-    void this.pushGate(session, dir).then((gate) => {
-      if (!gate.ok) {
-        this.say(gate.why);
-        return;
-      }
-      const command = [
-        `git push -u origin ${shellQuote(gate.branch)}`,
-        "&& { command -v gh >/dev/null || { echo 'gh not installed: open the pull request by hand'; false; }; }",
-        "&& { gh pr view --web 2>/dev/null || gh pr create --web; }",
-        "; echo; echo 'enter closes'; read -r _",
-      ].join(" ");
-      this.say(`pushing ${gate.branch}…`);
-      void tmuxPopup(dir, command, `push ${gate.branch}`).then((ok) => this.say(ok ? "" : "could not open popup"));
-    });
-  }
-
-  /** Whether the push may go. Asks git fresh: the polled state may predate the commit you just made. */
-  private async pushGate(session: Session, dir: string): Promise<{ ok: true; branch: string } | { ok: false; why: string }> {
-    const branch = await run(["git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD"]);
-    if (!branch || branch === "HEAD") return { ok: false, why: "detached HEAD: check out a branch first" };
-    const base = session.changes?.base ?? (await baseBranch(dir));
-    if (base && branch === base.replace(/^[^/]+\//, "")) return { ok: false, why: `on ${branch} itself: P pushes feature branches only` };
-    if (await run(["git", "-C", dir, "status", "--porcelain"])) return { ok: false, why: "uncommitted changes: commit first (v)" };
-    const reviewing = this.sessions.find((s) => s.reviewOf && s.status === "busy" && workDir(s) === dir);
-    if (reviewing) return { ok: false, why: `${reviewing.tool} is still reviewing: wait for its report` };
-    return { ok: true, branch };
-  }
-
   /** In zed mode panes stay in their own windows, so a Zed terminal attached to one keeps it. */
   private async showPane(paneId: string): Promise<void> {
     if (this.options.jump === "tmux") await focusTmuxPane(paneId, this.options.stagePercent);
@@ -738,9 +694,6 @@ export class App {
         return;
       case "V":
         if (session) session.reviewOf ? this.reportFindings(session) : this.startReviewer(session);
-        return;
-      case "P":
-        if (session) this.pushAndOpenPr(session);
         return;
       case "x":
         if (session) this.closeReviewer(session);
