@@ -1,6 +1,6 @@
 {
   "name": "@lilbunnyrabbit/agtc",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Agent Traffic Control: air traffic control for your coding agents. Terminal dashboard for local Claude Code and Codex sessions.",
   "keywords": [
     "claude-code",
