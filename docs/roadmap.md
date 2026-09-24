@@ -26,7 +26,7 @@ agents, layouts across monitors, or dropping the agent TUI for an SDK-driven cha
 
 ## Tasks
 
-All six shipped on 2026-09-23, unreleased. What each left behind:
+The first six shipped on 2026-09-23, the seventh a day later, all unreleased. What each left behind:
 
 1. Notifications: `osascript` banner, default on, `--no-notify` / `AGTC_NOTIFY=0`. Fires on the
    poll that sees a session turn done or needs input while its terminal is off screen. The
@@ -55,6 +55,23 @@ All six shipped on 2026-09-23, unreleased. What each left behind:
    no process of their own.
 6. Mouse: SGR 1000/1006, hit map per frame, click selects, double click stages, wheel moves
    the selection. Legacy X10 reports are consumed so a stray byte never reads as `q`.
+7. Worktrees (2026-09-24): `agtc worktrees [DIR]`, `prune`, `rm NAME [--force]`, in
+   `src/worktrees.ts`. A subcommand like graph, not a key: the list is long (104 on the
+   platform repo) and removal wants a `y/N`, neither fits the hub. State per worktree from
+   one `git worktree list --porcelain`, one `for-each-ref` with `%(upstream:track)` for gone
+   and ahead, `git status --porcelain` in each (eight at a time; still ~12s for 104, so a
+   progress line on stderr), sessions from the last 30 days for who ran there. Merged is
+   read as "upstream gone" because squash merges leave no ancestry. A branch without an
+   upstream counts commits no other ref holds (`rev-list --not --exclude=<own> --branches
+   --remotes`), so a worktree parked on another branch's commit is `fresh` and says
+   `in <ref>`. `prune` deletes the branch with `-D` only for gone, `-d` for fresh, so git
+   still refuses when the count was wrong. Tried treating a gone branch with commits no
+   other ref holds as unpushed: after `fetch --prune` every squash-merged branch looks like
+   that (61 of 62), and git keeps no record of the last pushed tip, so gone is trusted. In a terminal the list is a picker (checkbox per
+   row, removable ones pre-checked, enter then y): the plain table is what `--once` and a
+   pipe get. Not built: pruning across every repo at once, `x` in the hub for a finished
+   session's worktree, seeing a plain shell or Zed sitting in a worktree (only agents count
+   as live).
 
 ## Next
 

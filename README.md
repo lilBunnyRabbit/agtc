@@ -50,6 +50,8 @@ Sessions that want you, `input` and `done`, get a filled badge and a title in th
 
 `agtc graph`, full screen in a terminal of its own, is a read-only overview of what runs: the same sessions drawn like a pipeline, a box per running session on the left, what it spawned in boxes to its right, arrows between them. The border takes the status colour. It redraws on every poll and takes no key but `q`.
 
+`agtc worktrees [DIR]` lists the worktrees of DIR's repository (default cwd) with what keeps each one around: the agent running or last seen there, uncommitted files, commits the remote lacks. Sorted most alive first. A `✓` marks the ones safe to remove: `fresh` (never committed to, no changes), `gone` (branch deleted on the remote, so merged or closed there; a squash merge leaves no trace in the base's history, which is why the remote is asked and not `git branch --merged`) and `missing` (directory already deleted, git still lists it). One caveat: a commit made in a `gone` worktree after its last push is invisible once the remote branch is pruned, so `prune` deletes it with the branch; check `dirty` and `unpushed` are what you expect, `gone` is trusted. In a terminal the list is interactive: the removable ones start checked, `space` toggles any row that is not live or locked (a `dirty` or `unpushed` one goes with `--force`, the branch stays), `a` checks all removable, `n` none, `enter` asks once and removes the checked, `q` quits; piped or with `--once` it prints the table. `agtc worktrees prune` skips the list and removes the removable ones after a `y`, deleting the branch of a `gone` or `fresh` one with it; `missing` only loses its registration. `agtc worktrees rm NAME` takes one by directory name or branch, refuses `dirty`, `unpushed`, `detached` and `locked` unless `--force`, and never removes one an agent is running in. `--force` keeps the branch.
+
 ```
  acme-platform ──────────────────────────────────────────────────────────────  4 sessions
  ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
@@ -133,6 +135,11 @@ agtc graph           read-only overview of what runs: a box per session, its rev
 agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
 agtc send [DIR] --file F --row N
                      type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
+agtc worktrees [DIR] the worktrees of DIR's repository: what runs or last ran in each, uncommitted and unpushed work, ✓ on the removable; a checkbox list in a terminal, a table when piped
+agtc worktrees prune [DIR]
+                     remove the removable ones after a y/N, with their branches
+agtc worktrees rm NAME [DIR] [--force]
+                     remove one by directory name or branch; --force takes uncommitted or unpushed work with it
 agtc --jump zed      enter opens the checkout in the editor instead of pulling the pane next to agtc
 agtc --days 7        list inactive sessions from the last 7 days (default 2)
 agtc --interval 1000 poll every second (default 2000 ms)
@@ -260,7 +267,7 @@ agtc is read-only and offline. The full footprint:
 - **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`; `f` writes the report it shows to `~/.cache/agtc/report.txt`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
 - **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first. When a poll finds a session that just turned done or needs input while its terminal is off screen, `osascript -e 'display notification …'` shows a banner with the session's title and status (`--no-notify` stops that).
 - **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's.
-- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, for `f` a popup running `less` over the reviewer's report that, on a number you type, runs the editor on that `file:line`, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way, with the read-only flags below added back for a reviewer. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, the one process agtc ends, and only after its report was handed over or dropped. Nothing in agtc removes a file, a branch or a worktree.
+- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, for `f` a popup running `less` over the reviewer's report that, on a number you type, runs the editor on that `file:line`, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way, with the read-only flags below added back for a reviewer. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, the one process agtc ends, and only after its report was handed over or dropped. The only things agtc deletes are worktrees and branches, and only through `agtc worktrees prune` after a `y` or `agtc worktrees rm`: `git worktree remove` (with `--force` only when you passed it), then `git branch -d` for a never-used branch and `git branch -D` for one whose remote branch is gone, `git worktree prune` for a directory that is already gone. Nothing runs in a worktree an agent is active in.
 - **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.
 - **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.
 - macOS asks for Automation permission (control Terminal.app) the first time. Denying it only disables tab titles, the seen detection and `enter` for sessions in Terminal.app tabs.
@@ -293,7 +300,7 @@ ln -s "$PWD/bin/agtc" ~/.local/bin/agtc-dev   # or keep the release and run the 
 Layout:
 
 ```
-src/main.ts          entry: --help / --version / --json / --once / tmux / graph / TUI
+src/main.ts          entry: --help / --version / --json / --once / tmux / graph / worktrees / TUI
 src/cli.ts           flag parsing and usage text
 src/session.ts       Session type, status order
 src/sessions.ts      collects from every source, attaches git changes, resolves "done", sorts
@@ -305,6 +312,7 @@ src/hub.ts           `agtc tmux`: create or attach the hub session
 src/lookup.ts        the agent running in a directory, for attach and send
 src/attach.ts        `agtc attach`: grouped tmux view on that agent
 src/send.ts          `agtc send`: paste a code reference into that agent's input
+src/worktrees.ts     `agtc worktrees`: state of every worktree, prune and rm
 src/sources/         claude/ (registry, history, transcript), codex/ (sqlite, lsof, rollout log), git, processes, terminal, tmux
 src/tui/             ansi codes, theme, row layout, frame rendering, key parsing, App loop, the `agtc graph` view and loop
 src/lib/             shell, files, text, time, ttl-cache helpers

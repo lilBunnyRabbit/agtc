@@ -1,4 +1,4 @@
-export type Mode = "tui" | "graph" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "help" | "version";
+export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "help" | "version";
 export type Jump = "tmux" | "zed";
 
 export interface Options {
@@ -23,6 +23,12 @@ export interface Options {
   /** `send`: code reference to type into the agent's input. */
   file?: string;
   row?: string;
+  /** `worktrees`: list them, prune the removable ones, or remove one. */
+  action?: "prune" | "rm";
+  /** `worktrees rm`: directory name or branch of the one to remove. */
+  name?: string;
+  /** `worktrees rm`: remove it despite uncommitted or unpushed work. */
+  force: boolean;
 }
 
 const DEFAULT_DAYS = 2;
@@ -40,6 +46,16 @@ Usage
   agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
   agtc send [DIR] --file F --row N
                        type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
+  agtc worktrees [DIR] the worktrees of DIR's repository (default cwd): what runs or last ran in
+                       each, uncommitted and unpushed work, which ones are safe to remove (✓).
+                       In a terminal it is a list with a checkbox per row: the safe ones start
+                       checked, space toggles any that is not live or locked, enter removes the
+                       checked after a y/N; piped or with --once it prints the table
+  agtc worktrees prune [DIR]
+                       remove the safe ones after a y/N, with their branches, no list to edit
+  agtc worktrees rm NAME [DIR]
+                       remove one by directory name or branch; --force takes uncommitted or
+                       unpushed work with it (the branch stays)
   agtc --once          print one frame and exit
   agtc --json          dump sessions as JSON
   agtc update          update to the newest published version
@@ -54,6 +70,7 @@ Options
   --inactive           start with inactive sessions shown
   --bell               ring the terminal bell too when a session finishes or needs input unseen
   --no-notify          no macOS notification when a session finishes or needs input off screen
+  --force              worktrees rm: remove despite uncommitted or unpushed work
   -h, --help           show this help
   -v, --version        print the version
 
@@ -73,6 +90,17 @@ States
   idle                 waiting for you, output already seen
   inactive             not running (recent history)
 
+Worktrees
+  live                 an agent runs there (shown as its status)
+  dirty                uncommitted changes
+  unpushed             commits the remote lacks, or a branch never pushed
+  pushed               everything on the remote; the branch still exists there
+  detached             no branch, commits of its own
+  locked               git worktree lock; never touched
+  fresh                no commits, no changes: never used         ✓ removable
+  gone                 branch deleted on the remote: merged or closed  ✓ removable
+  missing              directory gone; prune forgets it, keeps the branch  ✓ removable
+
 "Seen" means the session's Terminal.app tab or tmux window was in front after
 the turn finished, or you jumped to it (enter) or marked it (m / M) from here.
 Marks persist in ~/.cache/agtc/state.json.`;
@@ -89,7 +117,7 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const command = argv[0]?.startsWith("-") ? undefined : argv[0];
-  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", attach: "attach", send: "send" };
+  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send" };
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")
@@ -101,7 +129,14 @@ export function parseArgs(argv: string[]): Options {
           : has("--once")
             ? "once"
             : "tui";
-  const positional = argv[1] && !argv[1].startsWith("-") ? argv[1] : undefined;
+  const action = command === "worktrees" && (argv[1] === "prune" || argv[1] === "rm") ? argv[1] : undefined;
+  const words: string[] = [];
+  for (const arg of argv.slice(action ? 2 : 1)) {
+    if (arg.startsWith("-")) break;
+    words.push(arg);
+  }
+  const name = action === "rm" ? words[0] : undefined;
+  const positional = action === "rm" ? words[1] : words[0];
   const jump = stringAfter("--jump", process.env.AGTC_JUMP);
 
   return {
@@ -118,5 +153,8 @@ export function parseArgs(argv: string[]): Options {
     dir: positional ?? process.cwd(),
     file: stringAfter("--file"),
     row: stringAfter("--row"),
+    action,
+    name,
+    force: has("--force"),
   };
 }
