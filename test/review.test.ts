@@ -38,9 +38,7 @@ describe("review", () => {
 });
 
 describe("specPath", () => {
-  test("keyed by checkout and branch, legacy id file as fallback", () => {
-    const keyed = specPath({ id: "abc", cwd: "/r/x", root: "/r", branch: "feat/a" });
-    expect(keyed.endsWith("/r--feat-a.md")).toBe(true);
-    expect(specPath({ id: "abc", cwd: "/r/x", root: "/r" }).endsWith("/r--detached.md")).toBe(true);
+  test("one file per session id", () => {
+    expect(specPath("abc").endsWith("/specs/abc.md")).toBe(true);
   });
 });

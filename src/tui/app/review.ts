@@ -32,7 +32,7 @@ export function startReviewer(ctx: AppContext, session: Session): void {
       ctx.say("V needs a tmux session: run `agtc tmux`");
       return;
     }
-    const written = specPath(session);
+    const written = specPath(session.id);
     const askAuthor = `ask ${session.tool} for a spec`;
     const prompts = [session.firstPrompt, session.lastPrompt].filter((p): p is string => !!p && !p.startsWith("/"));
     const choices = [...new Set([...(existsSync(written) ? [tildify(written, HOME)] : []), askAuthor, ...prompts])];
