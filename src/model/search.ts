@@ -18,7 +18,7 @@ export function buildSearchText(session: SessionInput): string {
 
 const queryTerms = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean);
 
-/** Sessions to list. Every term must match somewhere; a search always looks through inactive sessions too. */
+/** A search always looks through inactive sessions too. */
 export function filterSessions(sessions: Session[], { showInactive, query }: SessionFilter): Session[] {
   const terms = queryTerms(query);
   const live = sessions.filter((s) => s.status !== "inactive");
@@ -26,10 +26,6 @@ export function filterSessions(sessions: Session[], { showInactive, query }: Ses
   return terms.length ? pool.filter((s) => terms.every((term) => s.searchText.includes(term))) : pool;
 }
 
-/**
- * For a matching session whose title and last prompt do not show why it matched,
- * a snippet of the older prompt that does. Undefined when the hit is already visible.
- */
 export function matchSnippet(session: Session, query: string): string | undefined {
   const terms = queryTerms(query);
   if (!terms.length) return undefined;

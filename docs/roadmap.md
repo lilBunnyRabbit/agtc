@@ -35,14 +35,14 @@ The first six shipped on 2026-09-23, the seventh a day later, all unreleased. Wh
    now (`focusTmuxPane`): a pane brings its siblings, several staged panes leave together.
    The one-pane case still swaps, so a resized stage keeps its width there and resets in the
    group case.
-3. `f`: report popup, `less`, numbered `path:line` references, `q` then the number opens it in
+3. `f`: report popup (removed 2026-09-24, `V` on the reviewer row is the hand-back), `less`, numbered `path:line` references, `q` then the number opens it in
    the editor. Two keystrokes because `less` has no hook on the current line; a native report
    view would make it one.
 4. Read-only resume: `readOnlyFlags` shared by the fresh command and `R` / `S` / `c`;
    `HubWindow.reviewOf` carries it across restarts.
 5. Views: shipped first as a `tab`-cycled `ui.view` flag inside the TUI, rejected the same day:
    the overview needs no keys, and the TUI needs no second body renderer. Now `agtc graph`,
-   a read-only subcommand with its own loop (`src/tui/graph.ts`), polling with a read-only
+   a read-only subcommand with its own loop (`src/commands/graph.ts`, rendering in `src/tui/graph.ts`), polling with a read-only
    `SeenStore` so it never writes the hub's state file. Views with their own data (quno, ot)
    go the same way: a command each, not a mode. Meant for a full screen: families (a session
    with its children) flow across the width, as many per row as fit. Graph: one level deep. Subagents from `subagents/agent-*.meta.json` plus
@@ -56,7 +56,7 @@ The first six shipped on 2026-09-23, the seventh a day later, all unreleased. Wh
 6. Mouse: SGR 1000/1006, hit map per frame, click selects, double click stages, wheel moves
    the selection. Legacy X10 reports are consumed so a stray byte never reads as `q`.
 7. Worktrees (2026-09-24): `agtc worktrees [DIR]`, `prune`, `rm NAME [--force]`, in
-   `src/worktrees.ts`. A subcommand like graph, not a key: the list is long (104 on the
+   `src/worktrees/`. A subcommand like graph, not a key: the list is long (104 on the
    platform repo) and removal wants a `y/N`, neither fits the hub. State per worktree from
    one `git worktree list --porcelain`, one `for-each-ref` with `%(upstream:track)` for gone
    and ahead, `git status --porcelain` in each (eight at a time; still ~12s for 104, so a

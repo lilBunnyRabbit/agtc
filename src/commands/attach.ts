@@ -1,12 +1,11 @@
-import { agentIn } from "./lookup";
-import { succeeds } from "./lib/shell";
-import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "./sources/tmux";
+import { succeeds } from "../lib/shell";
+import { agentIn } from "../model/lookup";
+import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "../tmux/env";
 
 /**
- * `agtc attach [DIR]`: shows the agent running in DIR (default cwd) in this terminal, live.
- * A tmux session grouped with the agent's shares its windows but keeps its own current
- * window, so this client can sit on the agent while the hub shows something else. No status
- * bar, and the grouped session dies when this terminal closes; the agent does not.
+ * A tmux session grouped with the agent's shares its windows but keeps its own current window,
+ * so this client can sit on the agent while the hub shows something else. No status bar, and
+ * the grouped session dies when this terminal closes; the agent does not.
  */
 export async function attachAgent(dir: string): Promise<number> {
   if (OWN_PANE) {

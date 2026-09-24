@@ -2,8 +2,8 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseJsonLine, readLinesFrom, readTailLines } from "../../lib/files";
 import { CLAUDE_DIR, HOME } from "../../paths";
+import { REPORT_TAIL_BYTES } from "../limits";
 
-/** Where a session has been working, read from its transcript as it grows. */
 export interface TranscriptActivity {
   /**
    * Absolute paths the session acted on, newest first: every path-like token in a tool call's
@@ -36,8 +36,6 @@ const PROJECTS_DIR = join(CLAUDE_DIR, "projects");
 /** How far back a transcript is read the first time it is seen. */
 const FIRST_READ_BYTES = 1024 * 1024;
 const KEEP_PATHS = 40;
-/** How far back a transcript is read for the last message; a long report with its tool calls fits. */
-const REPORT_TAIL_BYTES = 512 * 1024;
 const MAX_DEPTH = 4;
 /** Absolute, home-relative or plain relative paths with at least one separator. */
 const PATH_TOKEN = /(?:~|\.{1,2}|[\w.@+-]+)?(?:\/[\w.@+-]+)+/g;
@@ -49,7 +47,6 @@ const projectSlug = (cwd: string) => cwd.replace(/[^A-Za-z0-9]/g, "-");
 const pathById = new Map<string, string>();
 const scans = new Map<string, ScanState>();
 
-/** Recent activity of a live session. Only lines appended since the last call are read. */
 export function transcriptActivity(sessionId: string, cwd: string): TranscriptActivity {
   const path = transcriptPath(sessionId, cwd);
   if (!path) return NO_ACTIVITY;
@@ -77,7 +74,6 @@ export function transcriptActivity(sessionId: string, cwd: string): TranscriptAc
   return { paths: scan.paths };
 }
 
-/** Paths a tool call on this line touched, in order of appearance, then its cwd. */
 function pathsOnLine(line: string, fallbackCwd: string): string[] {
   const entry = parseJsonLine<TranscriptLine>(line);
   const content = entry?.message?.content;
@@ -124,7 +120,6 @@ export function lastAssistantMessage(sessionId: string, cwd: string): string | u
   return text || undefined;
 }
 
-/** ~/.claude/projects/<slug of cwd>/<id>.jsonl, or wherever else the id turns up. */
 export function transcriptPath(sessionId: string, cwd: string): string | undefined {
   const known = pathById.get(sessionId);
   if (known) return known;

@@ -1,12 +1,11 @@
 import { parseJsonLine, readTailLines } from "../../lib/files";
 import { collapse } from "../../lib/text";
-import { PROMPT_MAX_LENGTH, type Status } from "../../session";
+import { PROMPT_MAX_LENGTH, type Status } from "../../model/session";
+import { REPORT_TAIL_BYTES } from "../limits";
 
 export interface RolloutSummary {
   status: Status;
-  /** When that status began. */
   at: number;
-  /** Prompts found in the tail of the log, oldest first. */
   prompts: string[];
   lastPromptAt?: number;
 }
@@ -16,10 +15,6 @@ interface RolloutEvent {
   payload?: { type?: string; message?: unknown; last_agent_message?: unknown };
 }
 
-/** How far back a rollout is read for the last message; a long report with its tool calls fits. */
-const REPORT_TAIL_BYTES = 512 * 1024;
-
-/** Current status and recent prompts from the tail of a thread's rollout .jsonl. */
 export function summarizeRollout(path: string): RolloutSummary {
   const prompts: string[] = [];
   let lastPromptAt: number | undefined;

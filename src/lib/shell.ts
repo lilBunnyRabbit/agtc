@@ -1,4 +1,3 @@
-/** Runs a command and returns its trimmed stdout. Failures (including a missing binary) yield "". */
 export async function run(argv: string[]): Promise<string> {
   try {
     const proc = Bun.spawn(argv, { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
@@ -10,7 +9,6 @@ export async function run(argv: string[]): Promise<string> {
   }
 }
 
-/** Runs a command and keeps its output either way, for messages that must show git's complaint. */
 export async function exec(argv: string[]): Promise<{ ok: boolean; output: string }> {
   try {
     const proc = Bun.spawn(argv, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
@@ -21,7 +19,6 @@ export async function exec(argv: string[]): Promise<{ ok: boolean; output: strin
   }
 }
 
-/** Runs a command for its side effect. True when it exited with 0. */
 export async function succeeds(argv: string[]): Promise<boolean> {
   try {
     const proc = Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
@@ -31,7 +28,6 @@ export async function succeeds(argv: string[]): Promise<boolean> {
   }
 }
 
-/** Starts a command and leaves it running. False when the binary is missing. */
 export function launch(argv: string[], env: Record<string, string | undefined> = process.env): boolean {
   try {
     Bun.spawn(argv, { env, stdin: "ignore", stdout: "ignore", stderr: "ignore" });
@@ -55,5 +51,4 @@ export function copyToClipboard(text: string): void {
   Bun.spawnSync(["pbcopy"], { stdin: new TextEncoder().encode(text) });
 }
 
-/** Single-quotes a string for a POSIX shell, so nothing inside it expands. */
 export const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;

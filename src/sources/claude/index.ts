@@ -1,5 +1,5 @@
 import { collapse } from "../../lib/text";
-import { type SessionInput, type Status, TITLE_MAX_LENGTH } from "../../session";
+import { type SessionInput, type Status, TITLE_MAX_LENGTH } from "../../model/session";
 import { type GitInfo, gitInfo, repoCheckouts } from "../git";
 import { processInfo } from "../processes";
 import type { SourceOptions, Surfaces } from "../types";
@@ -11,10 +11,8 @@ import { type TranscriptActivity, transcriptActivity } from "./transcript";
 /** Claude animates one of these at the start of the tab title while it works. */
 const SPINNER_GLYPHS = /^[◐◑◒◓◴◵◶◷⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/;
 
-/** Drops the status glyph Claude prefixes to tab titles. */
 const stripTitleGlyph = (title: string) => title.replace(/^[^\p{L}\p{N}]+\s*/u, "").trim();
 
-/** Live Claude Code sessions, plus recent finished ones from history. */
 export async function claudeSessions({ surfaces, sinceMs }: SourceOptions): Promise<SessionInput[]> {
   const registry = readClaudeRegistry();
   const history = readClaudeHistory();

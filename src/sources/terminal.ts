@@ -4,9 +4,6 @@ import { TtlCache } from "../lib/ttl-cache";
 import { listExecutables } from "./processes";
 import type { Surfaces } from "./types";
 
-/** Terminal.app tabs keyed by tty name, e.g. "ttys004". Viewed = app and window frontmost, tab selected. */
-export type TerminalTabs = Surfaces;
-
 const FIELD_SEPARATOR = "\t";
 const FRONTMOST_MARKER = "FRONT";
 
@@ -30,8 +27,8 @@ tell application "Terminal"
   return out
 end tell`;
 
-export async function terminalTabs(): Promise<TerminalTabs> {
-  const tabs: TerminalTabs = new Map();
+export async function terminalTabs(): Promise<Surfaces> {
+  const tabs: Surfaces = new Map();
   if (!(await isTerminalRunning())) return tabs;
 
   let appFrontmost = false;

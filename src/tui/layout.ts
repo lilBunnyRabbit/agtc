@@ -27,11 +27,9 @@ export interface RowCells {
   jump: string;
   worktree: string;
   tool: string;
-  /** Already padded to STATUS_WIDTH. */
   status: string;
 }
 
-/** Everything left of the title. Glyph cells are one column wide; styling is allowed. */
 export function rowPrefix({ bar, jump, worktree, tool, status }: RowCells): string {
   return `${LEFT_MARGIN}${bar} ${jump} ${worktree}${GAP}${tool}${GAP}${status}${GAP}`;
 }
@@ -53,9 +51,7 @@ export interface Size {
 
 export interface Layout extends Size {
   titleWidth: number;
-  /** Text after the search icon on a match-snippet line. */
   snippetWidth: number;
-  /** Text width inside the detail pane. */
   detailWidth: number;
 }
 

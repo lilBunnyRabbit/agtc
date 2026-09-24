@@ -3,15 +3,11 @@ import { join } from "node:path";
 import { readJsonLines } from "../../lib/files";
 import { collapse } from "../../lib/text";
 import { CLAUDE_DIR } from "../../paths";
-import { PROMPT_MAX_LENGTH } from "../../session";
+import { PROMPT_MAX_LENGTH } from "../../model/session";
 
-/** Everything you typed into one Claude session, from ~/.claude/history.jsonl. */
 export interface ClaudeHistory {
-  /** Working directory the session ran in. */
   project: string;
-  /** First substantial prompt; used as a title. */
   firstPrompt: string;
-  /** Latest prompt that is not a slash command. */
   lastPrompt: string;
   prompts: string[];
   lastAt: number;
@@ -32,7 +28,6 @@ const makesGoodTitle = (prompt: string) => !isSlashCommand(prompt) && prompt.tri
 
 let cache: { fingerprint: string; histories: Map<string, ClaudeHistory> } | undefined;
 
-/** Histories keyed by session id. Re-parsed only when the file changes. */
 export function readClaudeHistory(): Map<string, ClaudeHistory> {
   if (!existsSync(HISTORY_FILE)) return new Map();
   const stat = statSync(HISTORY_FILE);

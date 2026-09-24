@@ -2,8 +2,8 @@ import pkg from "../../package.json";
 import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
-import { filterSessions, matchSnippet } from "../search";
-import { type Session, type Status, STATUSES, type Tool } from "../session";
+import { filterSessions, matchSnippet } from "../model/search";
+import { type Session, type Status, STATUSES, type Tool, type Verdict } from "../model/session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import {
   AGE_WIDTH,
@@ -23,25 +23,18 @@ import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon
 export interface Prompt {
   label: string;
   value: string;
-  /** Values `tab` walks through, when the answer is usually one of a known few. */
   choices?: string[];
 }
 
 export interface UiState {
-  /** Label for the enter key in the footer. */
   enterHint: string;
-  /** Index into the visible (filtered) list. */
   selected: number;
   showInactive: boolean;
   showDetail: boolean;
-  /** The full key legend in the footer instead of the keys for the selected row. */
   showKeys: boolean;
   query: string;
-  /** Keys go to the search box instead of the list. */
   searchMode: boolean;
-  /** A one-line question in the footer; keys go there while it is open. */
   prompt?: Prompt;
-  /** Transient status text shown in the footer. */
   message: string;
   refreshedAt: number;
 }
@@ -52,9 +45,7 @@ export function initialUiState(showInactive: boolean, enterHint = "focus"): UiSt
 
 export interface Frame {
   lines: string[];
-  /** Sessions in list order, so key handlers can map `selected` to a session. */
   visible: Session[];
-  /** Per screen row (0-based), the stretches that stand for a session, for the mouse; header, rules, detail and footer rows have none. */
   hits: Hit[][];
 }
 
@@ -83,11 +74,8 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   return { lines: lines.map((line) => clip(line, layout.columns)), visible, hits };
 }
 
-/** Who reviews whom, for the marker on a reviewed row and the lines in the detail pane. */
 interface Reviews {
-  /** The running reviewer of a session, by the reviewed session's id. */
   reviewerOf: Map<string, Session>;
-  /** Every session by id, to name what a reviewer reviews. */
   subjectOf: Map<string, Session>;
 }
 
@@ -128,7 +116,6 @@ function countByStatus(sessions: Session[]): Record<Status, number> {
 
 // ---------------------------------------------------------------- list
 
-/** One line per session, grouped under a rule per repo. */
 function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBody {
   const lines: string[] = [];
   const hits: Hit[][] = [];
@@ -160,7 +147,6 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
   return { lines, hits, lineOfSelected };
 }
 
-/** The group line carries how many of its sessions want you, so a folded-away group still shows it. */
 /**
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
@@ -178,7 +164,9 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
     tool: toolIcon(session.tool, inactive),
     status: statusCell(session.status),
   });
-  const title = padRight(underSubject ? "review" : session.title, layout.titleWidth - visibleLength(branch));
+  const label = underSubject ? "review" : session.title;
+  const verdict = session.verdict ? verdictTag(session.verdict, inactive) : "";
+  const title = padRight(label, layout.titleWidth - visibleLength(branch) - visibleLength(verdict));
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
@@ -187,16 +175,14 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
         ? style(title, ...statusStyle(session.status))
         : title;
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + branch + styledTitle + rowSuffix(age);
+  return prefix + branch + styledTitle + verdict + rowSuffix(age);
 }
 
-/** Shows where an older prompt matched the search, aligned under the title. */
 function snippetLine(snippet: string, isSelected: boolean, layout: Layout): string {
   const prefix = rowPrefix({ ...BLANK_CELLS, bar: selectionBar(isSelected) });
   return prefix + style(`${ICON.search} ${truncate(snippet, layout.snippetWidth)}`, ANSI.yellow);
 }
 
-/** At most `height` lines, the selected one kept roughly centred once the list outgrows the space. */
 /** First list line on screen: the focused line sits mid-window, except at the ends. */
 function scrollStart(length: number, focusLine: number, height: number): number {
   const maxStart = Math.max(0, length - height);
@@ -208,7 +194,6 @@ function scrollStart(length: number, focusLine: number, height: number): number 
 const MIN_RULE = 4;
 const SUB_INDENT = "  ";
 
-/** The detail when it fits, nothing when it would squeeze the list. */
 function fittingDetail(session: Session, layout: Layout, maxLines: number, reviews: Reviews): string[] {
   const lines = renderDetail(session, layout, reviews);
   return lines.length <= maxLines ? lines : [];
@@ -231,7 +216,7 @@ function renderDetail(session: Session, layout: Layout, reviews: Reviews): strin
     push(style(truncate(tildify(session.cwd, HOME), layout.detailWidth), ANSI.dim));
   }
   const review = reviewLine(session, reviews, layout.detailWidth);
-  if (review) lines.push("", DETAIL_INDENT + review);
+  if (review) lines.push("", ...review.split("\n").map((line, i) => (i ? line : DETAIL_INDENT + line)));
   lines.push("");
   return lines;
 }
@@ -264,17 +249,27 @@ function statusLine(session: Session, layout: Layout): string {
   return left;
 }
 
-/** What a reviewer reviews, or the state of the reviewer a session has. */
+/** " · ready" in green, " · not ready" in magenta, after the title. */
+function verdictTag({ ready }: Verdict, dimmed: boolean): string {
+  return style(` · ${ready ? "ready" : "not ready"}`, dimmed ? ANSI.dim : ready ? ANSI.green : ANSI.magenta);
+}
+
 function reviewLine(session: Session, { reviewerOf, subjectOf }: Reviews, width: number): string | undefined {
   if (session.reviewOf) {
     const subject = subjectOf.get(session.reviewOf);
     const state = subject ? style(`  ${subject.status}`, ...statusStyle(subject.status)) : "";
-    return style(`${ICON.review} reviews `, ANSI.cyan) + truncate(subject?.title ?? session.reviewOf, Math.max(0, width - 10 - visibleLength(state))) + state;
+    const head = style(`${ICON.review} reviews `, ANSI.cyan) + truncate(subject?.title ?? session.reviewOf, Math.max(0, width - 10 - visibleLength(state))) + state;
+    return session.verdict ? `${head}\n${DETAIL_INDENT}${SUB_INDENT}${verdictText(session.verdict, width - SUB_INDENT.length)}` : head;
   }
   const reviewer = reviewerOf.get(session.id);
   if (!reviewer) return undefined;
   const state = style(`${reviewer.status} for ${relativeAge(reviewer.since)}`, ...statusStyle(reviewer.status));
-  return style(`${ICON.review} reviewer `, ANSI.cyan) + `${toolIcon(reviewer.tool)} ${reviewer.tool}  ` + state;
+  const head = style(`${ICON.review} reviewer `, ANSI.cyan) + `${toolIcon(reviewer.tool)} ${reviewer.tool}  ` + state;
+  return reviewer.verdict ? `${head}\n${DETAIL_INDENT}${SUB_INDENT}${verdictText(reviewer.verdict, width - SUB_INDENT.length)}` : head;
+}
+
+function verdictText({ ready, text }: Verdict, width: number): string {
+  return style(`${ready ? "ready" : "not ready"}  `, ready ? ANSI.green : ANSI.magenta) + style(truncate(text, Math.max(0, width - 12)), ANSI.dim);
 }
 
 function checkoutLine(session: Session): string {
@@ -282,7 +277,6 @@ function checkoutLine(session: Session): string {
   return session.worktree ? style(`${ICON.worktree} ${session.worktree}`, ANSI.cyan) + onBranch : `${ICON.mainCheckout} main checkout${onBranch}`;
 }
 
-/** "   3 files +120 −14   2 ahead of origin/main", or "clean" when nothing is pending. */
 function changesSummary({ changes }: Session): string {
   if (!changes) return "";
   const work = changes.paths.length
@@ -335,7 +329,6 @@ function rowKeys(ui: UiState, session: Session | undefined): string[] {
     "o editor",
     "v diff",
     session.reviewOf ? "V report" : "V review agent",
-    ...(session.reviewOf ? ["f findings"] : []),
     ...(session.reviewOf && live ? ["x close"] : []),
     "n new agent",
     "N worktree",
@@ -354,7 +347,6 @@ function allKeys(ui: UiState): string[] {
     "o editor",
     "v diff",
     "V review agent / report",
-    "f findings popup",
     "x close reviewer",
     "n new agent",
     "N new worktree",

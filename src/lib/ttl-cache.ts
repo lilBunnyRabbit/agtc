@@ -1,4 +1,3 @@
-/** Async memoizer. Values expire after `ttlMs`; concurrent loads of one key share a single promise. */
 export class TtlCache<K, V> {
   private readonly values = new Map<K, { at: number; value: V }>();
   private readonly inflight = new Map<K, Promise<V>>();

@@ -81,9 +81,8 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | `enter` | jump to that session: its Terminal.app tab, or its tmux pane (inside tmux it joins agtc's window, see below) |
 | `o` | open the checkout in the editor (`AGTC_EDITOR`, default `zed`) at the most recently changed file |
 | `v` | review the checkout in a tmux popup: `lazygit` if installed, else `git diff HEAD` |
-| `V` | start a read-only reviewer agent for that session's work in a pane beside the session's (a window of its own when the session is not in tmux). Asks for the spec: `tab` walks the spec the session wrote (`~/.cache/agtc/specs/<id>.md`, when it exists), `ask <tool> for a spec`, its first and last prompt; or type text or a `@path`. Then which tool reviews (the other one by default). It shows as a row under the session. On a reviewer's row, `V` pastes its report into the reviewed session's input, unsent |
-| `f` | the reviewer's report in a popup, on its row or on the reviewed session's (its latest reviewer). Every `path:line` in it gets a number; `q` then that number opens the file at the line in the editor, `q` then enter closes |
-| `x` | close a reviewer: its tmux pane and the agent in it. Refused while its report is unread (`V` hands it over, `f` shows it, `m` drops it) |
+| `V` | start a read-only reviewer agent for that session's work in a pane beside the session's (a window of its own when the session is not in tmux). Asks for the spec: `tab` walks the spec the session wrote (`~/.cache/agtc/specs/<checkout>--<branch>.md`, when it exists), `ask <tool> for a spec`, its first and last prompt; or type text or a `@path`. Then which tool reviews (the other one by default). It shows as a row under the session. On a reviewer's row, `V` pastes its report into the reviewed session's input, unsent |
+| `x` | close a reviewer: its tmux pane and the agent in it. Refused while its report is unread (`V` hands it over, `m` drops it) |
 | `n` | start another agent of the same kind in a new tmux window; asks where, starting from that checkout, `tab` walks the checkouts in the list |
 | `N` | new worktree of that repository (asks for a branch name), then an agent in it |
 | `R` | resume an inactive session in a new tmux window, so attach and send can reach it. A reviewer comes back read-only |
@@ -115,7 +114,7 @@ Every flow assumes the hub is running: `agtc tmux` in any terminal, Zed's includ
 
 **Review what an agent did.** Select it, `v`: lazygit over its checkout, `q` closes. For the diff in the editor, `o`.
 
-**Get a second opinion.** Select the session, `V`. First time, take `ask <tool> for a spec`: a request lands in the session's input, enter, and the agent writes what was asked, what the result must do and what is out of scope to `~/.cache/agtc/specs/<session>.md`, in its own words but without its reasoning. `V` again: the file is the default now (edit it in Zed first if you like), pick the reviewer. A fresh agent of the other tool starts in the same checkout, in a pane beside the session's, with the spec and the base branch, reads the diff, and reports findings, questions and a verdict. It cannot edit: Claude runs with every writing tool disallowed, Codex in its read-only sandbox. Its row hangs off the session's, so its status sits right under the work it judges. When it asks something, `enter` on its row and answer. When it is done, `f` shows the report in a popup, with a number on every `path:line` so one key opens the file in Zed. Then `V` on its row: the report lands in the reviewed session's input, unsent, and that session comes on stage. Read it, cut what you disagree with, enter. `x` on the reviewer closes it. The agent fixes, you `V` again on the session for a fresh pair of eyes, or `v` and commit.
+**Get a second opinion.** Select the session, `V`. First time, take `ask <tool> for a spec`: a request lands in the session's input, enter, and the agent writes what was asked, what the result must do and what is out of scope to `~/.cache/agtc/specs/<checkout>--<branch>.md`, in its own words but without its reasoning; the file follows the checkout and branch, so a resumed or second session in the same worktree finds it. `V` again: the file is the default now (edit it in Zed first if you like), pick the reviewer. A fresh agent of the other tool starts in the same checkout, in a pane beside the session's, with the spec and the base branch, reads the diff, and reports findings, questions and a verdict. The verdict, `ready` or `not ready`, lands on the reviewer's row, in the detail pane with its first line, and in the banner when the reviewer finishes off screen. It cannot edit: Claude runs with every writing tool disallowed, Codex in its read-only sandbox. Its row hangs off the session's, so its status sits right under the work it judges. When it asks something, `enter` on its row and answer. When it is done, `V` on its row: the report lands in the reviewed session's input, unsent, and that session comes on stage. Read it, cut what you disagree with, enter. `x` on the reviewer closes it. The agent fixes, you `V` again on the session for a fresh pair of eyes, or `v` and commit.
 
 **Ship it.** `v`, commit in lazygit, `q`, then tell the agent to push and open the pull request. agtc itself never sends anything off the machine.
 
@@ -264,10 +263,10 @@ No hooks, no daemons, no config. Everything is read from what the tools already 
 agtc is read-only and offline. The full footprint:
 
 - **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, their `<session>/subagents/agent-*.meta.json` and the tail of `agent-*.jsonl`, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
-- **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`; `f` writes the report it shows to `~/.cache/agtc/report.txt`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
+- **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
 - **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first. When a poll finds a session that just turned done or needs input while its terminal is off screen, `osascript -e 'display notification …'` shows a banner with the session's title and status (`--no-notify` stops that).
 - **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's.
-- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, for `f` a popup running `less` over the reviewer's report that, on a number you type, runs the editor on that `file:line`, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way, with the read-only flags below added back for a reviewer. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, the one process agtc ends, and only after its report was handed over or dropped. The only things agtc deletes are worktrees and branches, and only through `agtc worktrees prune` after a `y` or `agtc worktrees rm`: `git worktree remove` (with `--force` only when you passed it), then `git branch -d` for a never-used branch and `git branch -D` for one whose remote branch is gone, `git worktree prune` for a directory that is already gone. Nothing runs in a worktree an agent is active in.
+- **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way, with the read-only flags below added back for a reviewer. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, the one process agtc ends, and only after its report was handed over or dropped. The only things agtc deletes are worktrees and branches, and only through `agtc worktrees prune` after a `y` or `agtc worktrees rm`: `git worktree remove` (with `--force` only when you passed it), then `git branch -d` for a never-used branch and `git branch -D` for one whose remote branch is gone, `git worktree prune` for a directory that is already gone. Nothing runs in a worktree an agent is active in.
 - **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.
 - **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.
 - macOS asks for Automation permission (control Terminal.app) the first time. Denying it only disables tab titles, the seen detection and `enter` for sessions in Terminal.app tabs.
@@ -292,6 +291,7 @@ bun install
 bun start         # or: bun src/main.ts
 bun src/main.ts tmux   # the hub, running this checkout
 bun run check     # typecheck
+bun test
 bun run check:offline
 bun link          # makes `agtc` on your PATH point at this checkout
 ln -s "$PWD/bin/agtc" ~/.local/bin/agtc-dev   # or keep the release and run the checkout as agtc-dev
@@ -300,22 +300,25 @@ ln -s "$PWD/bin/agtc" ~/.local/bin/agtc-dev   # or keep the release and run the 
 Layout:
 
 ```
-src/main.ts          entry: --help / --version / --json / --once / tmux / graph / worktrees / TUI
+src/main.ts          entry: dispatches on the parsed mode
 src/cli.ts           flag parsing and usage text
-src/session.ts       Session type, status order
-src/sessions.ts      collects from every source, attaches git changes, resolves "done", sorts
-src/search.ts        `/` filtering and match snippets
-src/seen-store.ts    persisted state: seen marks, last opened per checkout, last hub windows (~/.cache/agtc/state.json)
-src/restore.ts       S: the last hub's agent windows again
-src/editor.ts        `o`: open the checkout in the editor
-src/hub.ts           `agtc tmux`: create or attach the hub session
-src/lookup.ts        the agent running in a directory, for attach and send
-src/attach.ts        `agtc attach`: grouped tmux view on that agent
-src/send.ts          `agtc send`: paste a code reference into that agent's input
-src/worktrees.ts     `agtc worktrees`: state of every worktree, prune and rm
-src/sources/         claude/ (registry, history, transcript), codex/ (sqlite, lsof, rollout log), git, processes, terminal, tmux
-src/tui/             ansi codes, theme, row layout, frame rendering, key parsing, App loop, the `agtc graph` view and loop
-src/lib/             shell, files, text, time, ttl-cache helpers
+src/paths.ts         every file agtc reads or writes under ~
+src/model/           Session type and status order, tool commands (resume, read-only flags), collect from every
+                     source + git changes + "done" + sort, `/` search, the state file (~/.cache/agtc/state.json),
+                     the agent running in a directory (for attach and send)
+src/sources/         read-only: claude/ (registry, history, transcript, subagents), codex/ (sqlite, lsof, rollout),
+                     git, processes, Terminal.app tabs, tmux panes
+src/tmux/            acting on tmux: own pane detection, stage (enter), windows/panes/popups, key setup, the hub
+                     session, restoring the last hub
+src/review/          the V loop: spec request, reviewer prompt and command, reading a report and its verdict
+src/worktrees/       `agtc worktrees`: read state per worktree, state rules, table, picker, remove
+src/commands/        one file per subcommand: attach, send, update, graph loop, worktrees
+src/desktop/         the editor (`o`) and macOS notifications
+src/tui/             ansi, theme, row layout, frame rendering, key parsing, the shared raw-mode screen, help text,
+                     graph rendering; tui/app/ is the interactive loop with its actions split by concern
+                     (stage, agents, review, input) over one AppContext
+src/lib/             shell, files, text, time, ttl-cache, map-limit
+test/                bun test: pure parts (parsing, layout, state rules, rendering invariants)
 ```
 
 ## Releasing

@@ -1,14 +1,9 @@
-import { shellQuote, succeeds } from "./lib/shell";
-import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "./sources/tmux";
+import { shellQuote, succeeds } from "../lib/shell";
+import { OWN_PANE, tmuxFreeEnv, tmuxHasSession } from "./env";
 
 export const HUB_SESSION = "agtc";
 export const HUB_WINDOW = "hub";
 
-/**
- * `agtc tmux`: attaches to the hub session, creating it with agtc running in a window
- * named "hub" first. Agents started from agtc get windows in this session and are shown
- * next to agtc on `enter`.
- */
 export async function openHub(argv: string[]): Promise<number> {
   if (OWN_PANE) {
     console.log("already inside tmux. Run plain `agtc` here; this window becomes the hub.");

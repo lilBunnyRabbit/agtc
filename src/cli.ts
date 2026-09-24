@@ -3,14 +3,12 @@ export type Jump = "tmux" | "zed";
 
 export interface Options {
   mode: Mode;
-  /** How far back inactive sessions are listed. */
   days: number;
   intervalMs: number;
   showInactive: boolean;
   bell: boolean;
   /** macOS banner when a session turns done or needs input off screen. Default on. */
   notify: boolean;
-  /** Width of the stage pane next to agtc inside tmux, in percent. */
   stagePercent: number;
   /** Where `N` puts new worktrees; relative to the main checkout. Default .claude/worktrees. */
   worktrees?: string;
@@ -18,17 +16,13 @@ export interface Options {
   base?: string;
   /** What `enter` does: pull the agent's pane next to agtc, or open its checkout in the editor. */
   jump: Jump;
-  /** Directory for attach and send. Default cwd. */
   dir: string;
-  /** `send`: code reference to type into the agent's input. */
   file?: string;
   row?: string;
-  /** `worktrees`: list them, prune the removable ones, or remove one. */
   action?: "prune" | "rm";
-  /** `worktrees rm`: directory name or branch of the one to remove. */
   name?: string;
-  /** `worktrees rm`: remove it despite uncommitted or unpushed work. */
   force: boolean;
+  once: boolean;
 }
 
 const DEFAULT_DAYS = 2;
@@ -156,5 +150,6 @@ export function parseArgs(argv: string[]): Options {
     action,
     name,
     force: has("--force"),
+    once: has("--once"),
   };
 }

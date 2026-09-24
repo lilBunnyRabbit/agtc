@@ -21,7 +21,6 @@ export const ANSI = {
   bell: "\x07",
 } as const;
 
-/** Wraps text in the given codes and resets afterwards. */
 export function style(text: string, ...codes: string[]): string {
   return codes.join("") + text + ANSI.reset;
 }
@@ -32,14 +31,12 @@ export function stripAnsi(text: string): string {
   return text.replace(ESCAPE_SEQUENCE, "");
 }
 
-/** Number of terminal cells a styled string occupies. */
 export function visibleLength(text: string): number {
   return stripAnsi(text).length;
 }
 
 const ELLIPSIS = "…";
 
-/** Cuts a styled string to `width` cells with an ellipsis, keeping escape sequences intact. */
 export function clip(text: string, width: number): string {
   if (visibleLength(text) <= width) return text;
   let out = "";

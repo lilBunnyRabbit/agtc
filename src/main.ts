@@ -1,22 +1,21 @@
-// agtc — Agent Traffic Control. Entry point; see `agtc --help` or src/cli.ts for usage.
 import pkg from "../package.json";
 import { USAGE, parseArgs } from "./cli";
-import { attachAgent } from "./attach";
-import { openHub } from "./hub";
+import { attachAgent } from "./commands/attach";
+import { watchGraph } from "./commands/graph";
+import { sendToAgent } from "./commands/send";
+import { selfUpdate } from "./commands/update";
+import { worktreesCommand } from "./commands/worktrees";
+import { collectSessions } from "./model/sessions";
+import { StateStore } from "./model/state-store";
 import { STATE_FILE } from "./paths";
-import { SeenStore } from "./seen-store";
-import { sendToAgent } from "./send";
-import { collectSessions } from "./sessions";
-import { detectOwnPane } from "./sources/tmux";
-import { App } from "./tui/app";
-import { watchGraph } from "./tui/graph";
-import { worktreesCommand } from "./worktrees";
+import { detectOwnPane } from "./tmux/env";
+import { openHub } from "./tmux/hub";
+import { App } from "./tui/app/app";
 import { terminalSize } from "./tui/layout";
 import { initialUiState, renderFrame } from "./tui/render";
-import { selfUpdate } from "./update";
 
 const options = parseArgs(process.argv.slice(2));
-const seen = () => SeenStore.load(STATE_FILE);
+const state = () => StateStore.load(STATE_FILE);
 await detectOwnPane();
 
 switch (options.mode) {
@@ -29,13 +28,13 @@ switch (options.mode) {
     break;
 
   case "json": {
-    const sessions = await collectSessions({ days: options.days, seen: seen() });
+    const sessions = await collectSessions({ days: options.days, state: state() });
     console.log(JSON.stringify(sessions.map(({ searchText, prompts, ...session }) => session), null, 2));
     break;
   }
 
   case "once": {
-    const sessions = await collectSessions({ days: options.days, seen: seen() });
+    const sessions = await collectSessions({ days: options.days, state: state() });
     const ui = { ...initialUiState(true), showDetail: true };
     console.log(renderFrame(sessions, ui, terminalSize()).lines.join("\n"));
     break;
@@ -54,7 +53,7 @@ switch (options.mode) {
     process.exit(await sendToAgent({ dir: options.dir, file: options.file, row: options.row, selection: process.env.AGTC_SELECTION }));
 
   case "tui":
-    new App(options, seen()).start();
+    new App(options, state()).start();
     break;
 
   case "graph":

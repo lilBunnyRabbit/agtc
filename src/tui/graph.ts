@@ -1,20 +1,12 @@
-import type { Options } from "../cli";
 import { relativeAge } from "../lib/time";
-import { STATE_FILE } from "../paths";
-import { SeenStore } from "../seen-store";
-import type { Session, Subagent } from "../session";
-import { collectSessions } from "../sessions";
+import type { Session, Subagent } from "../model/session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
-import { Key, splitKeys } from "./keys";
-import { type Layout, computeLayout, terminalSize } from "./layout";
-import { renderHeader } from "./render";
+import type { Layout } from "./layout";
 import { repoRule } from "./rows";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 /*
- * `agtc graph`: every running session a box, what it spawned in boxes to its right, arrows
- * between them. Like a CI pipeline, read left to right. An overview to leave on a screen:
- * it redraws as things change and takes no key but q.
+ * Every running session a box, what it spawned in boxes to its right, arrows between them.
  *
  *   ┌──────────────────────────────┐    ┌──────────────────────────────┐    ┌──────────────────────────────┐
  *   │ ✳ ⎇  Transitions.dev anim…   │─┬─▶│ ⬡ review                     │    │ ✳ Settings page padding      │
@@ -25,9 +17,8 @@ import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon
  *                                       │   busy · 1m                  │
  *                                       └──────────────────────────────┘
  *
- * The border takes the status colour. A session and its children make a family; families
- * flow across the width, as many per row as fit, so a full screen holds them all. A pane too
- * narrow for two boxes side by side hangs the children under their parent.
+ * A session and its children make a family; families flow across the width, as many per row
+ * as fit. A pane too narrow for two boxes side by side hangs the children under their parent.
  */
 
 const MARGIN = " ";
@@ -35,75 +26,21 @@ const MIN_BOX_WIDTH = 26;
 /** Boxes grow to this before another column of families opens. */
 const PREFERRED_BOX_WIDTH = 52;
 const MAX_BOX_WIDTH = 60;
-/** Rows of one box: two borders, two lines. */
 const BOX_HEIGHT = 4;
-/** The row of a box an arrow leaves from and arrives at. */
 const ARROW_ROW = 1;
-/** Between a parent and its children, where the arrow runs, and between one family and the next. */
 const GAP_WIDTH = 4;
-/** Narrow mode: the trunk under the parent and the arrow into each child. */
 const HANG_WIDTH = 5;
-/** Header and the blank line under it. */
-const HEADER_LINES = 2;
 
 const BOX = { tl: "┌", tr: "┐", bl: "└", br: "┘", h: "─", v: "│", tee: "┬" };
 
 interface Node {
-  /** Two lines of content, unpadded. */
   lines: string[];
   colour: string[];
 }
 
-/** A session with its children drawn: what one row of the graph is made of. */
 interface Block {
   width: number;
   lines: string[];
-}
-
-/** The graph alone, polled and redrawn until q, escape or ctrl-c. */
-export function watchGraph(options: Options): void {
-  const out = process.stdout;
-  let sessions: Session[] = [];
-  let refreshedAt = Date.now();
-  let refreshing = false;
-
-  const draw = () => {
-    const size = terminalSize();
-    const layout = computeLayout(size);
-    const live = sessions.filter((s) => s.status !== "inactive");
-    const room = Math.max(1, size.rows - HEADER_LINES);
-    const body = renderGraph(live, layout);
-    const shown = body.length > room ? [...body.slice(0, room - 1), style(`${MARGIN}…`, ANSI.dim)] : body;
-    out.write(ANSI.clearScreen + [renderHeader(sessions, live, { query: "", refreshedAt }, layout), "", ...shown].join("\n"));
-  };
-  const refresh = async () => {
-    if (refreshing) return;
-    refreshing = true;
-    try {
-      // Loaded every poll: the hub owns the file, and its marks turn done into idle here too.
-      sessions = await collectSessions({ days: options.days, seen: SeenStore.load(STATE_FILE, { readOnly: true }) });
-      refreshedAt = Date.now();
-      draw();
-    } finally {
-      refreshing = false;
-    }
-  };
-
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  process.stdin.setEncoding("utf8");
-  process.stdin.on("data", (chunk: string) => {
-    for (const key of splitKeys(chunk)) if (key === "q" || key === Key.escape || key === Key.ctrlC) process.exit(0);
-  });
-  out.write(ANSI.altScreenOn + ANSI.hideCursor);
-  process.on("exit", () => out.write(ANSI.showCursor + ANSI.altScreenOff));
-  process.on("SIGINT", () => process.exit(0));
-  process.on("SIGTERM", () => process.exit(0));
-  out.on("resize", draw);
-
-  draw();
-  void refresh();
-  setInterval(() => void refresh(), options.intervalMs);
 }
 
 export function renderGraph(live: Session[], layout: Layout): string[] {
@@ -151,7 +88,6 @@ export function renderGraph(live: Session[], layout: Layout): string[] {
   return lines;
 }
 
-/** The parent box with its children beside it, arrows between; or, when hanging, under it off a trunk. */
 function familyBlock(parent: Node, children: Node[], boxWidth: number, hang: boolean): Block {
   const parentBox = drawBox(parent, boxWidth, hang && children.length ? HANG_WIDTH - 2 : undefined);
   if (!children.length) return { width: boxWidth, lines: parentBox };
@@ -174,7 +110,6 @@ function familyBlock(parent: Node, children: Node[], boxWidth: number, hang: boo
   return { width: boxWidth * 2 + GAP_WIDTH, lines };
 }
 
-/** A session's box: its tool, worktree and title, then status, age and branch. */
 function sessionNode(session: Session): Node {
   const attention = needsAttention(session.status);
   const head = `${toolIcon(session.tool)} ${session.worktree && !session.reviewOf ? `${worktreeIcon()}  ` : ""}`;
@@ -182,14 +117,13 @@ function sessionNode(session: Session): Node {
   const status = attention
     ? style(` ${STATUS_LABEL[session.status]} `, ...statusStyle(session.status), ANSI.reverse)
     : style(STATUS_LABEL[session.status], ...statusStyle(session.status));
-  const facts = [relativeAge(session.since), ...(session.branch && !session.reviewOf ? [session.branch] : [])];
+  const facts = [relativeAge(session.since), ...(session.branch && !session.reviewOf ? [session.branch] : []), ...(session.verdict ? [session.verdict.ready ? "ready" : "not ready"] : [])];
   return {
     lines: [head + (attention ? style(title, ...statusStyle(session.status)) : title), `  ${status}${style(` · ${facts.join(" · ")}`, ANSI.dim)}`],
     colour: statusStyle(session.status),
   };
 }
 
-/** A subagent's box: what it runs as and what it was asked, then whether it is still going. */
 function subagentNode(agent: Subagent): Node {
   const busy = agent.status === "busy";
   const colour = busy ? [ANSI.yellow] : [ANSI.dim];
@@ -200,7 +134,7 @@ function subagentNode(agent: Subagent): Node {
   };
 }
 
-/** Four rows: the border in the node's colour, content padded inside. `teeAt` puts a tee in the bottom border for a trunk leaving downwards. */
+/** `teeAt` puts a tee in the bottom border for a trunk leaving downwards. */
 function drawBox({ lines, colour }: Node, width: number, teeAt?: number): string[] {
   const inner = width - 4;
   const edge = (text: string) => style(text, ...colour);
@@ -213,7 +147,6 @@ function drawBox({ lines, colour }: Node, width: number, teeAt?: number): string
   return [edge(BOX.tl + BOX.h.repeat(width - 2) + BOX.tr), content(lines[0]), content(lines[1] ?? ""), edge(BOX.bl + bottom + BOX.br)];
 }
 
-/** What sits between the columns on a row: the arrow out of the parent, the trunk, a branch into each child. */
 function connector(row: number, children: number): string {
   if (!children) return " ".repeat(GAP_WIDTH);
   const lastEntry = (children - 1) * BOX_HEIGHT + ARROW_ROW;

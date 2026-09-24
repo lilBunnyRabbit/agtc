@@ -4,7 +4,6 @@ import { listProcesses } from "../processes";
 export interface CodexProcess {
   pid: number;
   cwd: string;
-  /** Thread the TUI is attached to; absent until the first message creates one. */
   threadId?: string;
 }
 
@@ -12,7 +11,6 @@ const CODEX_COMMAND = /(^|\/)codex(\s|$)/;
 const CODEX_HELPER = /app-server|remote-control|mcp-server/;
 const THREAD_LOCK = /thread-writer-locks\/([0-9a-f-]{36})\.lock$/;
 
-/** Interactive `codex` processes with their cwd and thread. Helper daemons are ignored. */
 export async function findCodexProcesses(): Promise<CodexProcess[]> {
   const pids = (await listProcesses())
     .filter(({ command }) => CODEX_COMMAND.test(command) && !CODEX_HELPER.test(command))

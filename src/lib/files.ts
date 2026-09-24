@@ -2,7 +2,6 @@ import { closeSync, fstatSync, openSync, readFileSync, readSync, statSync } from
 
 const DEFAULT_TAIL_BYTES = 64 * 1024;
 
-/** The last complete lines of a file, reading at most `maxBytes` from its end. */
 export function readTailLines(path: string, maxBytes = DEFAULT_TAIL_BYTES): string[] {
   try {
     const size = statSync(path).size;
@@ -25,7 +24,6 @@ export function readTailLines(path: string, maxBytes = DEFAULT_TAIL_BYTES): stri
 
 export interface LinesFrom {
   lines: string[];
-  /** Byte offset just past the last complete line, where the next read starts. */
   next: number;
 }
 
@@ -74,7 +72,6 @@ export function parseJsonLine<T>(line: string): T | undefined {
   }
 }
 
-/** Every parseable line of a JSONL file. Malformed lines are skipped. */
 export function readJsonLines<T>(path: string): T[] {
   let text: string;
   try {

@@ -1,6 +1,6 @@
 import { extname } from "node:path";
-import { agentIn } from "./lookup";
-import { pasteIntoPane } from "./sources/tmux";
+import { agentIn } from "../model/lookup";
+import { pasteIntoPane } from "../tmux/windows";
 
 export interface SendOptions {
   dir: string;
@@ -9,11 +9,6 @@ export interface SendOptions {
   selection?: string;
 }
 
-/**
- * `agtc send`: puts a code reference into the input of the agent running in DIR, without
- * submitting. `file:row`, then the selection as a fenced block when there is one. Bracketed
- * paste keeps the newlines from being taken as enter.
- */
 export async function sendToAgent({ dir, file, row, selection }: SendOptions): Promise<number> {
   const agent = await agentIn(dir);
   if (!agent) {
@@ -36,7 +31,7 @@ export async function sendToAgent({ dir, file, row, selection }: SendOptions): P
   return 0;
 }
 
-function compose(file: string | undefined, row: string | undefined, selection: string | undefined): string {
+export function compose(file: string | undefined, row: string | undefined, selection: string | undefined): string {
   const reference = file ? `${file}${row ? `:${row}` : ""}` : "";
   const body = selection?.replace(/\s+$/, "");
   if (!body) return reference ? `${reference} ` : "";

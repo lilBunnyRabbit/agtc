@@ -2,12 +2,10 @@ import { run } from "../lib/shell";
 import { parseElapsed } from "../lib/time";
 
 export interface ProcessInfo {
-  /** Controlling terminal name ("ttys004"), absent for daemons. */
   tty?: string;
   startedAt: number;
 }
 
-/** Controlling tty and start time for each pid, from one `ps` call. */
 export async function processInfo(pids: number[]): Promise<Map<number, ProcessInfo>> {
   const info = new Map<number, ProcessInfo>();
   if (!pids.length) return info;
@@ -24,7 +22,6 @@ export async function processInfo(pids: number[]): Promise<Map<number, ProcessIn
 
 export interface ProcessEntry {
   pid: number;
-  /** Full command line. */
   command: string;
 }
 
@@ -37,7 +34,6 @@ export async function listProcesses(): Promise<ProcessEntry[]> {
   return entries;
 }
 
-/** Executable path of every running process. */
 export async function listExecutables(): Promise<string[]> {
   return (await run(["ps", "-eo", "comm="])).split("\n");
 }

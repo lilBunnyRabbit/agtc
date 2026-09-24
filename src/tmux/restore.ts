@@ -1,20 +1,14 @@
 import { existsSync } from "node:fs";
-import type { HubWindow } from "./seen-store";
-import { type Session, resumeInvocation } from "./session";
-import { newTmuxWindow } from "./sources/tmux";
+import type { Session } from "../model/session";
+import type { HubWindow } from "../model/state-store";
+import { resumeInvocation } from "../model/tools";
+import { newTmuxWindow } from "./windows";
 
 export interface Restored {
-  /** Windows opened again, in order. */
   opened: HubWindow[];
-  /** Windows whose session is running already or whose directory is gone. */
   skipped: HubWindow[];
 }
 
-/**
- * Brings back the agent windows of the last hub: one tmux window per remembered session,
- * named as before, running the tool's resume command in the session's directory. Sessions
- * that run already are left alone, so pressing it twice is harmless.
- */
 export async function restoreHub(windows: HubWindow[], live: Session[], tmuxSession: string | undefined): Promise<Restored> {
   const running = new Set(live.filter((s) => s.status !== "inactive").map((s) => s.id));
   const result: Restored = { opened: [], skipped: [] };

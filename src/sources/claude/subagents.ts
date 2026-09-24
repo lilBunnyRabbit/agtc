@@ -2,10 +2,10 @@ import { type Stats, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseJsonLine, readJson, readTailLines } from "../../lib/files";
 import { MINUTE } from "../../lib/time";
-import type { Subagent } from "../../session";
+import { SUBAGENT_RECENT_MS } from "../limits";
+import type { Subagent } from "../../model/session";
 import { transcriptPath } from "./transcript";
 
-/** `agent-<id>.meta.json`, written once when the agent is spawned. */
 interface AgentMeta {
   agentType?: string;
   description?: string;
@@ -29,8 +29,6 @@ interface Cached extends AgentState {
   mtimeMs: number;
 }
 
-/** A finished agent stays in the graph this long: long enough to see the hand-back land. */
-const RECENT_MS = 10 * MINUTE;
 /** An agent whose log stopped growing this long ago while mid-tool crashed or was orphaned. */
 const STALE_MS = 30 * MINUTE;
 /** The last entry may be a tool result; a report that long is still read whole. */
@@ -66,13 +64,12 @@ export function claudeSubagents(sessionId: string, cwd: string): Subagent[] {
     const state = agentState(join(dir, `agent-${id}.jsonl`), join(dir, file));
     if (!state) continue;
     const quietFor = now - state.mtimeMs;
-    if (state.status === "done" ? now - state.since > RECENT_MS : quietFor > STALE_MS) continue;
+    if (state.status === "done" ? now - state.since > SUBAGENT_RECENT_MS : quietFor > STALE_MS) continue;
     agents.push({ id, description: meta.description ?? id, kind: meta.agentType, status: state.status, since: state.since });
   }
   return agents.sort((a, b) => a.since - b.since);
 }
 
-/** The log's last entry decides, read again only when the file changed. */
 function agentState(log: string, metaPath: string): Cached | undefined {
   let stat: Stats;
   try {

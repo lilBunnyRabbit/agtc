@@ -5,16 +5,11 @@ import { MINUTE, SECOND } from "../lib/time";
 import { TtlCache } from "../lib/ttl-cache";
 
 export interface GitInfo {
-  /** Main checkout's directory name, or the cwd's name outside git. */
   repo: string;
-  /** Linked worktree's directory name, when cwd is one. */
   worktree?: string;
   branch?: string;
-  /** Top level of the checkout. Absent outside git. */
   root?: string;
-  /** The repository's shared .git directory: equal for a main checkout and all its worktrees. */
   commonDir?: string;
-  /** The main checkout, where new worktrees are added from. */
   mainRoot?: string;
 }
 
@@ -24,7 +19,6 @@ export function gitInfo(cwd: string): Promise<GitInfo> {
   return infoCache.get(cwd, () => readGitInfo(cwd));
 }
 
-/** What a tmux window in `dir` is called: the repository, plus the worktree when it is one. */
 export async function checkoutName(dir: string): Promise<string> {
   const { repo, worktree } = await gitInfo(dir);
   return worktree ? `${repo}/${worktree}` : repo;
@@ -66,11 +60,7 @@ export function repoCheckouts(root: string): Promise<string[]> {
 
 const rootCache = new Map<string, string>();
 
-/**
- * Nearest checkout containing `start`, found by walking up to a `.git` entry (a directory for
- * a main checkout, a file for a linked worktree). No git call. Hits are cached; misses are
- * not, since a checkout may appear later.
- */
+/** Walks up to a `.git` entry (a directory for a main checkout, a file for a linked worktree). Misses are not cached: a checkout may appear later. */
 export function gitRootOfDir(start: string): string | undefined {
   const visited: string[] = [];
   for (let dir = start; ; dir = dirname(dir)) {
@@ -91,9 +81,7 @@ export interface GitChanges {
   paths: string[];
   insertions: number;
   deletions: number;
-  /** Branch the work will merge into, when one could be guessed. */
   base?: string;
-  /** Commits on HEAD that `base` lacks. */
   ahead?: number;
 }
 
@@ -102,7 +90,6 @@ const STATUS_LINE = /^[ MADRCU?!]{1,2}\s+(.+)$/;
 const changesCache = new TtlCache<string, GitChanges>(10 * SECOND);
 const baseCache = new TtlCache<string, string | undefined>(5 * MINUTE);
 
-/** Uncommitted work and commits ahead of the base branch in a checkout. */
 export function gitChanges(root: string): Promise<GitChanges> {
   return changesCache.get(root, () => readGitChanges(root));
 }
@@ -129,7 +116,6 @@ async function readGitChanges(root: string): Promise<GitChanges> {
   return { paths: byRecency(root, paths), insertions, deletions, base, ahead: Number.isFinite(aheadCount) ? aheadCount : undefined };
 }
 
-/** origin's default branch, else a local main or master. */
 export function baseBranch(root: string): Promise<string | undefined> {
   return baseCache.get(root, async () => {
     const remoteHead = await run(["git", "-C", root, "symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"]);
@@ -147,11 +133,7 @@ export interface NewWorktree {
   base: string;
 }
 
-/**
- * Adds a worktree from the main checkout. A branch that already exists is checked out as is,
- * otherwise it is created from `base` (fetched first when it is a remote branch, so the
- * worktree starts from what origin has now). Returns git's message on failure.
- */
+/** An existing branch is checked out as is; a remote base is fetched first so the worktree starts from what origin has now. Returns git's message on failure. */
 export async function createWorktree(mainRoot: string, { dir, branch, base }: NewWorktree): Promise<string | undefined> {
   const git = (...args: string[]) => exec(["git", "-C", mainRoot, ...args]);
   const remote = base.match(/^([^/]+)\/(.+)$/);

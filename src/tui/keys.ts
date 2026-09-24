@@ -41,16 +41,13 @@ export type MouseButton = "left" | "middle" | "right" | "wheelUp" | "wheelDown" 
 
 export interface Mouse {
   button: MouseButton;
-  /** 1-based terminal column. */
   x: number;
-  /** 1-based terminal row. */
   y: number;
   release: boolean;
 }
 
 const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
 
-/** The mouse event a key string is, SGR or legacy, or undefined for a real key. */
 export function parseMouse(key: string): Mouse | undefined {
   const sgr = key.match(SGR_MOUSE);
   if (sgr) return mouseEvent(Number(sgr[1]), Number(sgr[2]), Number(sgr[3]), sgr[4] === "m");

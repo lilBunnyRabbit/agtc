@@ -1,11 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import pkg from "../package.json";
-import { padRight } from "./lib/text";
-import { HELP_FILE } from "./paths";
-import { STATUSES, type Status } from "./session";
-import { ANSI, stripAnsi, style, visibleLength } from "./tui/ansi";
-import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./tui/theme";
+import pkg from "../../package.json";
+import { padRight } from "../lib/text";
+import { HELP_FILE } from "../paths";
+import { STATUSES, type Status } from "../model/session";
+import { ANSI, stripAnsi, style, visibleLength } from "./ansi";
+import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
 const KEY_WIDTH = 20;
 
@@ -18,7 +18,6 @@ const note = (text: string) => `  ${style(text, ANSI.dim)}`;
 const child = style(ICON.child, ANSI.cyan);
 const onReview = (keys: string) => `${k(`${keys} on `)}${child}${k(" review")}`;
 
-/** A status as the list draws it: filled badge when it wants you, plain colour otherwise. */
 function badge(status: Status): string {
   const label = STATUS_LABEL[status];
   return needsAttention(status) ? style(` ${label} `, ...statusStyle(status), ANSI.reverse) : style(label, ...statusStyle(status));
@@ -66,10 +65,9 @@ export function helpText(): string {
     heading("Review loop"),
     key("V", "start a read-only reviewer in a pane beside the session's. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),
     key(onReview("V"), "paste the reviewer's report into the reviewed session's input, unsent; read it there, then enter"),
-    key("f", "the reviewer's report in a popup, on its row or the reviewed session's; q then a finding's number opens that file:line in the editor"),
     key(onReview("enter"), "see what it says, answer its questions"),
-    key(onReview("x"), "close it", "refused while its report is unread: V, f or m first"),
-    note(`One round: V, ask for a spec, enter in the agent, V again, pick the tool, wait, f to read, V on ${ICON.child} review, enter in the agent. Then v to commit, and tell the agent to push.`),
+    key(onReview("x"), "close it", "refused while its report is unread: V or m first"),
+    note(`One round: V, ask for a spec, enter in the agent, V again, pick the tool, wait, V on ${ICON.child} review, enter in the agent. Then v to commit, and tell the agent to push.`),
     "",
     heading("Rows"),
     key(`${toolIcon("claude")}  ${toolIcon("codex")}`, "Claude Code, Codex"),
@@ -93,7 +91,6 @@ export function helpText(): string {
   ].join("\n");
 }
 
-/** Writes the reference where the popup's pager reads it. */
 export function writeHelp(): string {
   mkdirSync(dirname(HELP_FILE), { recursive: true });
   writeFileSync(HELP_FILE, helpText());

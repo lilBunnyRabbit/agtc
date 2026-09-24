@@ -1,15 +1,13 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import pkg from "../package.json";
-import { readJson } from "./lib/files";
+import pkg from "../../package.json";
+import { readJson } from "../lib/files";
 
 const PACKAGE_NAME = pkg.name;
-/** Directory holding package.json for the copy of agtc that is running. */
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 export type InstallKind = "checkout" | "bun-global" | "bunx" | "npm-global";
 
-/** Where this copy of agtc lives decides how it can be updated. */
 export function detectInstall(root = PACKAGE_ROOT): InstallKind {
   if (existsSync(join(root, ".git"))) return "checkout";
   if (root.includes("/.bun/install/global/")) return "bun-global";
@@ -18,7 +16,6 @@ export function detectInstall(root = PACKAGE_ROOT): InstallKind {
   return "checkout";
 }
 
-/** `agtc update`: replaces this install with the newest published version. Returns the exit code. */
 export async function selfUpdate(): Promise<number> {
   const kind = detectInstall();
   const spec = `${PACKAGE_NAME}@latest`;

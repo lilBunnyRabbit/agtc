@@ -3,7 +3,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { CODEX_DIR } from "../../paths";
 
-/** A row of the `threads` table in ~/.codex/state_*.sqlite. Columns keep their DB names. */
 export interface CodexThread {
   id: string;
   cwd: string;
@@ -11,7 +10,6 @@ export interface CodexThread {
   title: string;
   first_user_message: string;
   rollout_path: string;
-  /** Unix seconds. */
   updated_at: number;
 }
 
@@ -27,7 +25,6 @@ function currentStateDb(): string | undefined {
   return newest ? join(CODEX_DIR, newest) : undefined;
 }
 
-/** Unarchived threads, newest first. A thread appears only after its first message. */
 export function readCodexThreads(): CodexThread[] {
   const path = currentStateDb();
   if (!path) return [];
@@ -45,7 +42,6 @@ export function readCodexThreads(): CodexThread[] {
   }
 }
 
-/** A thread a live thread spawned as a collaborator, from `thread_spawn_edges` joined to `threads`. */
 export interface SpawnedThread {
   id: string;
   title: string;

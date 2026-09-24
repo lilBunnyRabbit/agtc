@@ -4,7 +4,6 @@ import { readJson } from "../../lib/files";
 import { isProcessAlive } from "../../lib/shell";
 import { CLAUDE_DIR } from "../../paths";
 
-/** One ~/.claude/sessions/<pid>.json file, written by a running Claude Code. */
 export interface ClaudeRegistration {
   pid: number;
   sessionId: string;
@@ -20,7 +19,6 @@ export interface ClaudeRegistration {
 
 const SESSIONS_DIR = join(CLAUDE_DIR, "sessions");
 
-/** Registrations whose process is still alive. Stale files from crashed sessions are skipped. */
 export function readClaudeRegistry(): ClaudeRegistration[] {
   if (!existsSync(SESSIONS_DIR)) return [];
   const live: ClaudeRegistration[] = [];

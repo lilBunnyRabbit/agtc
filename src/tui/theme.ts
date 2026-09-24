@@ -1,4 +1,4 @@
-import type { Status, Tool } from "../session";
+import type { Status, Tool } from "../model/session";
 import { ANSI, style } from "./ansi";
 
 export const ICON = {
@@ -14,7 +14,6 @@ export const ICON = {
   rule: "─",
 } as const;
 
-/** Short status word for the list column. */
 export const STATUS_LABEL: Record<Status, string> = {
   "needs input": "input",
   done: "done",
@@ -23,7 +22,6 @@ export const STATUS_LABEL: Record<Status, string> = {
   inactive: "inactive",
 };
 
-/** Statuses that want you: shown as a filled badge with the title in the same colour. */
 export const needsAttention = (status: Status) => status === "needs input" || status === "done";
 
 export function statusStyle(status: Status): string[] {
