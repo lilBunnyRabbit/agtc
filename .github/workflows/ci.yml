@@ -18,5 +18,6 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run check
+      - run: bun test
       - run: bun run check:offline
       - run: bun run smoke
