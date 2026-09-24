@@ -164,9 +164,9 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
     tool: toolIcon(session.tool, inactive),
     status: statusCell(session.status),
   });
-  const label = underSubject ? "review" : session.title;
   const verdict = session.verdict ? verdictTag(session.verdict, inactive) : "";
-  const title = padRight(label, layout.titleWidth - visibleLength(branch) - visibleLength(verdict));
+  const room = layout.titleWidth - visibleLength(branch) - visibleLength(verdict);
+  const title = truncate(underSubject ? "review" : session.title, room);
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
@@ -174,8 +174,9 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
       : attention
         ? style(title, ...statusStyle(session.status))
         : title;
+  const fill = " ".repeat(Math.max(0, room - title.length));
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + branch + styledTitle + verdict + rowSuffix(age);
+  return prefix + branch + styledTitle + verdict + fill + rowSuffix(age);
 }
 
 function snippetLine(snippet: string, isSelected: boolean, layout: Layout): string {
