@@ -9,6 +9,8 @@ export const Key = {
   shiftTab: "\x1b[Z",
   up: "\x1b[A",
   down: "\x1b[B",
+  right: "\x1b[C",
+  left: "\x1b[D",
 } as const;
 
 /** A legacy (X10) mouse report: CSI M then three bytes that would otherwise read as keys, `q` among them. */

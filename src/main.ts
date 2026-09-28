@@ -2,6 +2,7 @@ import pkg from "../package.json";
 import { USAGE, parseArgs } from "./cli";
 import { attachAgent } from "./commands/attach";
 import { codeCommand, editCommand } from "./commands/code";
+import { menuScreen } from "./commands/menu";
 import { watchGraph } from "./commands/graph";
 import { sendToAgent } from "./commands/send";
 import { selfUpdate } from "./commands/update";
@@ -58,6 +59,9 @@ switch (options.mode) {
 
   case "edit":
     process.exit(await editCommand({ dir: options.dir, pane: options.pane }));
+
+  case "menu":
+    process.exit(await menuScreen(process.argv[3]));
 
   case "tui":
     new App(options, state()).start();

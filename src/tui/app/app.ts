@@ -188,7 +188,7 @@ export class App implements AppContext {
   private handlePaneKey({ paneId, key }: PaneKey): void {
     if (this.ui.prompt) return;
     const session = this.sessions.find((s) => s.status !== "inactive" && s.tmux?.paneId === paneId);
-    if (key === MENU_KEY) return void (OWN_PANE && showMenu(session, paneId, OWN_PANE));
+    if (key === MENU_KEY) return void (OWN_PANE && void showMenu(session, paneId, OWN_PANE));
     if (!session) return this.say(`no agent in pane ${paneId}`);
     this.ui.searchMode = false;
     if (!this.visible.includes(session)) this.ui.query = "";

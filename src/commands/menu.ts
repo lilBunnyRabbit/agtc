@@ -1,79 +1,94 @@
-import { launch } from "../lib/shell";
-import { tildify, truncate } from "../lib/text";
-import { type Session, type Status, workDir } from "../model/session";
+import { shellQuote, succeeds } from "../lib/shell";
+import { tildify } from "../lib/text";
+import { type Session, workDir } from "../model/session";
 import { HOME } from "../paths";
 import { agtcShell, tmux } from "../tmux/env";
-import { backToHub } from "../tmux/setup";
-import { paneKey } from "../tui/keys";
+import { ANSI } from "../tui/ansi";
+import { Key, paneKey } from "../tui/keys";
+import { MENU_WIDTH, type Action, type MenuInfo, menuActions, moveSelection, renderMenu } from "../tui/menu";
+import { openScreen } from "../tui/terminal";
 
-const TITLE_WIDTH = 48;
 const ID_LENGTH = 8;
-
-interface Place {
-  pane: string;
-  hub: string;
-  self: string;
-}
-
-type Item = [label: string, key: string, command: string];
-
-const SEPARATOR: Item = ["", "", ""];
-/** tmux expands formats in menu text. */
-const plain = (text: string) => text.replace(/#/g, "##");
-/** A leading dash greys the line out and takes its key away. */
-const info = (text: string): Item => [`-#[nodim]${text}`, "", ""];
 const BORDER = "fg=cyan";
-const badge = (text: string) => `#[fg=cyan,bold,reverse] ${plain(text)} #[default]`;
-const STATUS_COLOUR: Record<Status, string> = { "needs input": "magenta,bold", done: "blue,bold", busy: "yellow", idle: "green", inactive: "default" };
+/** A popup cannot open over this one, so what opens one waits for it to close. */
+const CLOSE_MS = 200;
 
-/** Actions that ask something take the hub's pane, since agtc asks there. */
-function inHub({ pane, hub }: Place, key: string, asks = false): string {
-  const bytes = [...paneKey({ paneId: pane, key })].map((char) => char.charCodeAt(0).toString(16)).join(" ");
-  return `${asks ? `${backToHub(hub)} ; ` : ""}send-keys -t ${hub} -H ${bytes}`;
+export function menuInfo(session: Session | undefined, where: string, pane: string, hub: string): MenuInfo {
+  if (!session) return { pane, hub, where, kind: "none" };
+  const { title, tool, status, branch } = session;
+  return { pane, hub, where, kind: session.reviewOf ? "reviewer" : "agent", title, tool, status, branch, id: session.id.slice(0, ID_LENGTH) };
 }
 
-export function menuItems(session: Session | undefined, place: Place): Item[] {
-  const own = (command: string) => `run-shell -b "${place.self} ${command} --pane ${place.pane}"`;
-  const checkout: Item[] = [
-    ["Show in VS Code, link with /ide", "e", own("code")],
-    ["Open in the editor", "o", own("edit")],
-  ];
-  const tmuxItems: Item[] = [SEPARATOR, ["Back to agtc", "a", backToHub(place.hub)], ["Flip the layout", "Space", "next-layout"]];
-  if (!session) return [...checkout, ...tmuxItems];
-  const act: Item[] = session.reviewOf
-    ? [
-        ["Paste the report into the reviewed agent", "V", inHub(place, "V")],
-        ["Close this reviewer", "x", inHub(place, "x")],
-      ]
-    : [
-        ["Review: start a reviewer beside it", "V", inHub(place, "V", true)],
-        ["Close the agent and its window", "X", inHub(place, "X", true)],
-      ];
-  return [
-    ...act,
-    ["Diff in lazygit", "v", inHub(place, "v")],
-    ...checkout,
-    ["New agent, asks where", "n", inHub(place, "n", true)],
-    ["New worktree with an agent", "N", inHub(place, "N", true)],
-    ["Agent above", "J", inHub(place, "J")],
-    ["Agent below", "K", inHub(place, "K")],
-    ["Mark seen", "m", inHub(place, "m")],
-    ["Copy the resume command", "c", inHub(place, "c")],
-    ...tmuxItems,
-  ];
+const ACTIVE_BORDER = "pane-active-border-style";
+const OUTLINE = "fg=cyan,bold";
+
+/** Over the middle of the pane. tmux takes -y as the popup's bottom line. */
+export function popupPlace(width: number, height: number): string[] {
+  const x = `#{e|+:#{pane_left},#{e|/:#{e|-:#{pane_width},${width}},2}}`;
+  const y = `#{e|+:#{pane_top},#{e|/:#{e|+:#{pane_height},${height}},2}}`;
+  return ["-x", x, "-y", y];
 }
 
-export function menuHeader(session: Session | undefined, where: string): { title: string; lines: Item[] } {
-  if (!session) return { title: badge("no agent in this pane"), lines: [info(plain(where)), SEPARATOR] };
-  const status = `#[fg=${STATUS_COLOUR[session.status]}]${session.status}#[default]`;
-  const what = [session.tool, session.id.slice(0, ID_LENGTH), status, session.branch && `#[fg=cyan]${plain(session.branch)}#[default]`].filter(Boolean).join("  ");
-  return { title: badge(truncate(session.title, TITLE_WIDTH)), lines: [info(what), info(plain(where)), SEPARATOR] };
-}
-
-/** Launched, not awaited: tmux display-menu returns when the menu closes. */
-export async function showMenu(session: Session | undefined, pane: string, hub: string): Promise<boolean> {
+/** Returns when the popup closes. The pane's border takes the popup's colour meanwhile, to tie the two together. */
+export async function showMenu(session: Session | undefined, pane: string, hub: string): Promise<void> {
   const dir = session ? workDir(session) : await tmux("display", "-p", "-t", pane, "#{pane_current_path}");
-  const { title, lines } = menuHeader(session, tildify(dir, HOME));
-  const items = [...lines, ...menuItems(session, { pane, hub, self: agtcShell() })];
-  return launch(["tmux", "display-menu", "-t", pane, "-b", "rounded", "-S", BORDER, "-T", title, "--", ...items.flatMap((item) => (item[0] ? item : [""]))]);
+  const info = menuInfo(session, tildify(dir, HOME), pane, hub);
+  const height = renderMenu(info).length + 2;
+  const packed = Buffer.from(JSON.stringify(info)).toString("base64url");
+  const border = await tmux("show-options", "-wv", "-t", pane, ACTIVE_BORDER);
+  await succeeds(["tmux", "set-option", "-w", "-t", pane, ACTIVE_BORDER, OUTLINE]);
+  const size = ["-w", String(MENU_WIDTH + 2), "-h", String(height)];
+  await succeeds(["tmux", "display-popup", "-E", "-t", pane, "-b", "rounded", "-S", BORDER, ...size, ...popupPlace(MENU_WIDTH + 2, height), `${agtcShell()} menu ${shellQuote(packed)}`]);
+  await succeeds(["tmux", "set-option", "-w", ...(border ? [] : ["-u"]), "-t", pane, ACTIVE_BORDER, ...(border ? [border] : [])]);
+}
+
+export function tmuxCommands({ pane, hub }: MenuInfo, action: Action, self: string): string[][] {
+  const toHub = [["select-window", "-t", hub], ["select-pane", "-Z", "-t", hub]];
+  if (action.does === "back") return toHub;
+  if (action.does === "layout") return [["next-layout", "-t", pane]];
+  if (action.does === "own") return [["run-shell", "-b", `${self} ${action.command} --pane ${pane}`]];
+  const typed = ["send-keys", "-t", hub, "-H", ...[...paneKey({ paneId: pane, key: action.key })].map((char) => char.charCodeAt(0).toString(16))];
+  if (action.opensPopup) return [["run-shell", "-b", `sleep ${CLOSE_MS / 1000}; tmux ${typed.join(" ")}`]];
+  return action.asks ? [...toHub, typed] : [typed];
+}
+
+export function menuScreen(packed: string | undefined): Promise<number> {
+  const info = unpack(packed);
+  if (!info) {
+    console.log("agtc menu runs from its tmux key: prefix space or option-space in a pane of the hub's session");
+    return Promise.resolve(1);
+  }
+  const actions = menuActions(info);
+  const arrows: string[] = [Key.up, Key.down, Key.left, Key.right];
+  let selected: Action | undefined;
+  return new Promise((done) => {
+    const draw = () => process.stdout.write(ANSI.clearScreen + renderMenu(info, selected).join("\n"));
+    const screen = openScreen({
+      onResize: draw,
+      onKey: (key) => {
+        if (arrows.includes(key)) {
+          selected = moveSelection(info, selected, key);
+          return draw();
+        }
+        const action = key === Key.enter ? selected : actions.find((a) => a.key === key);
+        if (!action && key !== Key.escape && key !== "q") return;
+        screen.close();
+        void runAll(action ? tmuxCommands(info, action, agtcShell()) : []).then(() => done(0));
+      },
+    });
+    draw();
+  });
+}
+
+async function runAll(commands: string[][]): Promise<void> {
+  for (const command of commands) await succeeds(["tmux", ...command]);
+}
+
+function unpack(packed: string | undefined): MenuInfo | undefined {
+  try {
+    const info = JSON.parse(Buffer.from(packed ?? "", "base64url").toString());
+    return info?.pane && info.hub ? info : undefined;
+  } catch {
+    return undefined;
+  }
 }

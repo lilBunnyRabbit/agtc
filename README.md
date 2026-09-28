@@ -97,7 +97,7 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | `q` | quit |
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
-| `prefix space`, `option-space` | tmux keys agtc binds at start: a menu over the pane you are in, naming the session there and giving every action below a key, see [Keys from the agent's pane](#keys-from-the-agents-pane) |
+| `prefix space`, `option-space` | tmux keys agtc binds at start: a popup over the pane you are in, naming the session there and giving every action below a key, see [Keys from the agent's pane](#keys-from-the-agents-pane) |
 | `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `J`, `K` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
 
 ## Flows
@@ -194,7 +194,7 @@ Everything below is stock tmux; the prefix is `ctrl-b`, pressed and released bef
 
 - Switch windows: `prefix w` opens a chooser, `prefix n` / `prefix p` go next and previous, `prefix 0`..`9` by number, `prefix l` the window you came from. With `mouse on`, clicking a name in the status bar works too. From agtc, `enter` on a session does the same thing and also stages it.
 - Move between panes: `prefix o` cycles, `prefix` plus an arrow key goes in that direction, or click the pane. `prefix z` zooms the current pane to full size and back.
-- Change the layout: `prefix space space` cycles side by side, stacked and more (agtc's menu took `prefix space` and keeps tmux's `next-layout` on its `space`), `prefix {` swaps the two panes, `enter` keeps whatever you set. Resize by dragging the border, or `prefix :` and `resize-pane -L 10` (`-R`, `-U`, `-D`). tmux's own `prefix ctrl-arrow` never arrives on macOS until you untick the Mission Control shortcuts under Keyboard Shortcuts.
+- Change the layout: `prefix space space` cycles side by side, stacked and more (agtc's popup took `prefix space` and keeps tmux's `next-layout` on its `space`), `prefix {` swaps the two panes, `enter` keeps whatever you set. Resize by dragging the border, or `prefix :` and `resize-pane -L 10` (`-R`, `-U`, `-D`). tmux's own `prefix ctrl-arrow` never arrives on macOS until you untick the Mission Control shortcuts under Keyboard Shortcuts.
 - Close an agent: quit it (`/exit` in Claude Code, `ctrl-c` twice or `exit` for a shell), and its window closes with it. Nothing else is needed, agtc notices. `prefix &` kills the window with everything in it after a confirmation, `prefix x` kills just the pane; both end the agent, so prefer quitting it.
 - Leave: `prefix d` detaches, agents keep running, `agtc tmux` brings the session back. Closing the terminal window does the same.
 - Scroll: `prefix [` enters copy mode, arrows or page up/down move, `q` leaves. With `mouse on`, the wheel does it directly.
@@ -203,7 +203,7 @@ Sessions in Terminal.app tabs keep working as before; agtc uses whichever the se
 
 ## Keys from the agent's pane
 
-`prefix space`, or `option-space` where the terminal sends option as meta, opens a tmux menu over the pane you are typing in. Its title is the session's name; under it the tool, the start of the session id, the status, the branch and the checkout. Then one key per action, the same letters as in the hub:
+`prefix space`, or `option-space` where the terminal sends option as meta, opens a popup over the pane you are typing in. On top the session's name, the tool, the start of the session id, the status, the branch and the checkout. Below that the keys, the same letters as in the hub, each one press:
 
 | Key | Does | Where you end up |
 | --- | --- | --- |
@@ -217,9 +217,9 @@ Sessions in Terminal.app tabs keep working as before; agtc uses whichever the se
 | `a` | back to agtc | agtc's pane |
 | `space` | tmux's `next-layout`, which `prefix space` was before | where you were |
 
-`esc` or `q` closes the menu. A pane without an agent gets `e`, `o`, `a` and `space` for the directory it is in.
+Arrows mark an action and `enter` runs it; `esc` or `q` closes the popup. While it is open the pane's border takes the popup's colour. A pane without an agent gets `e`, `o`, `a` and `space` for the directory it is in.
 
-Holding option alone cannot open it: a terminal sends nothing for a modifier until a key comes with it. The key types an escape sequence naming your pane into agtc, which holds the sessions and opens the menu at once. Every action but `e` and `o` reaches agtc the same way, so agtc selects that row and does what the key does there.
+Holding option alone cannot open it: a terminal sends nothing for a modifier until a key comes with it. The key types an escape sequence naming your pane into agtc, which holds the sessions and opens the popup with what it knows, so nothing is scanned. Every action but `e` and `o` reaches agtc the same way, so agtc selects that row and does what the key does there.
 
 ## VS Code
 
