@@ -13,7 +13,7 @@ import { Key, type Mouse, parseMouse } from "../keys";
 import { terminalSize } from "../layout";
 import { type Frame, type UiState, initialUiState, renderFrame } from "../render";
 import { openScreen } from "../terminal";
-import { missingFromLastHub, newAgent, newWorktree, restoreLastHub, resumeInTmux } from "./agents";
+import { closeAgent, missingFromLastHub, newAgent, newWorktree, restoreLastHub, resumeInTmux } from "./agents";
 import type { AppContext, Ask } from "./context";
 import { editPrompt, searchKey } from "./input";
 import { closeReviewer, reportFindings, startReviewer } from "./review";
@@ -274,6 +274,9 @@ export class App implements AppContext {
         return;
       case "x":
         if (session) closeReviewer(this, session);
+        return;
+      case "X":
+        if (session) session.reviewOf ? closeReviewer(this, session) : closeAgent(this, session);
         return;
       case "J":
         return jumpBy(this, -1);

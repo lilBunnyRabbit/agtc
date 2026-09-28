@@ -61,6 +61,7 @@ export function helpText(): string {
     key("R", "resume an inactive session in a tmux window", "a reviewer comes back read-only"),
     key("S", "restore every agent window of the last hub", "reviewers read-only"),
     key("c", "copy its resume command"),
+    key("X", "close it: the agent and its tmux window, reviewers beside it included", "asks y/N first, then whether its worktree goes too when that is clean; R brings it back"),
     "",
     heading("Review loop"),
     key("V", "start a read-only reviewer in a pane beside the session's. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),

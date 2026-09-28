@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { succeeds } from "../lib/shell";
-import { tmux } from "./env";
+import { OWN_PANE, tmux } from "./env";
 
 export async function newTmuxWindow(cwd: string, command: string, session?: string, name = basename(cwd)): Promise<string | undefined> {
   const target = session ? ["-t", `${session}:`] : [];
@@ -20,6 +20,17 @@ export async function splitPane(pane: string, cwd: string, command: string): Pro
 /** By pane id, never by window: the pane may be on agtc's stage. */
 export function killPane(paneId: string): Promise<boolean> {
   return succeeds(["tmux", "kill-pane", "-t", paneId]);
+}
+
+export async function panesOf(pane: string): Promise<string[]> {
+  return (await tmux("list-panes", "-t", pane, "-F", "#{pane_id}")).split("\n").filter(Boolean);
+}
+
+/** Pane by pane, never kill-window: a staged pane sits in agtc's window. The window goes with its last pane. */
+export async function killWindowOf(paneId: string): Promise<string[]> {
+  const panes = (await panesOf(paneId)).filter((id) => id !== OWN_PANE);
+  const killed = await Promise.all(panes.map(killPane));
+  return panes.filter((_, index) => killed[index]);
 }
 
 /** Bracketed paste, so newlines do not submit. */

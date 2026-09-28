@@ -80,7 +80,7 @@ async function launchReviewer(ctx: AppContext, session: Session, dir: string, sp
 /** `x`: only reviewers, nothing else agtc started is read-only. */
 export function closeReviewer(ctx: AppContext, session: Session): void {
   if (!session.reviewOf) {
-    ctx.say("x closes reviewers only: quit other agents in their own window");
+    ctx.say("x closes reviewers only: X closes an agent and its window");
     return;
   }
   if (session.status === "inactive") {

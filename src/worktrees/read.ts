@@ -28,7 +28,13 @@ const SESSION_LOOKBACK_DAYS = 30;
 const CONCURRENCY = 8;
 const PROGRESS_THRESHOLD = 10;
 
-export async function readWorktrees(dir: string): Promise<WorktreeReport | undefined> {
+export interface Scope {
+  only: string;
+  /** Who counts as live, from a list already on hand. */
+  sessions: Session[];
+}
+
+export async function readWorktrees(dir: string, scope?: Scope): Promise<WorktreeReport | undefined> {
   const { repo, mainRoot } = await gitInfo(dir);
   if (!mainRoot) return undefined;
   const git = (...args: string[]) => run(["git", "-C", mainRoot, ...args]);
@@ -36,7 +42,7 @@ export async function readWorktrees(dir: string): Promise<WorktreeReport | undef
     baseBranch(mainRoot),
     git("worktree", "list", "--porcelain"),
     git("for-each-ref", "--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)\t%(committerdate:unix)", "refs/heads"),
-    collectSessions({ days: SESSION_LOOKBACK_DAYS, state: StateStore.load(STATE_FILE, { readOnly: true }) }),
+    scope?.sessions ?? collectSessions({ days: SESSION_LOOKBACK_DAYS, state: StateStore.load(STATE_FILE, { readOnly: true }) }),
   ]);
   const tracking = new Map<string, Tracking>();
   for (const line of refs.split("\n")) {
@@ -45,7 +51,7 @@ export async function readWorktrees(dir: string): Promise<WorktreeReport | undef
     tracking.set(branch, { upstream: upstream || undefined, gone: track === "[gone]", ahead: Number(track?.match(/ahead (\d+)/)?.[1] ?? 0), committedAt: Number(committed) * 1000 });
   }
   // The main checkout is always listed first.
-  const entries = parseWorktreeList(list).slice(1).filter((entry) => !entry.bare);
+  const entries = parseWorktreeList(list).slice(1).filter((entry) => !entry.bare && (!scope || entry.dir === scope.only));
   const progress = process.stderr.isTTY && entries.length > PROGRESS_THRESHOLD;
   if (progress) process.stderr.write(`reading ${entries.length} worktrees…`);
   const worktrees = await mapLimit(entries, CONCURRENCY, (entry) => describe(entry, { mainRoot, base, tracking, sessions }));

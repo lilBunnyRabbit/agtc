@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { succeeds } from "../lib/shell";
 import { WINDOW_NAME_OPTION } from "../sources/tmux";
 import { OWN_PANE, tmux } from "./env";
+import { panesOf } from "./windows";
 
 const SEP = "\t";
 
@@ -38,10 +39,6 @@ export async function focusTmuxPane(paneId: string, stagePercent: number): Promi
   if (!(await succeeds(["tmux", "join-pane", "-d", "-h", "-l", `${stagePercent}%`, "-s", first, "-t", OWN_PANE]))) return false;
   await joinBeside(first, rest);
   return succeeds(["tmux", "select-pane", "-t", paneId]);
-}
-
-async function panesOf(pane: string): Promise<string[]> {
-  return (await tmux("list-panes", "-t", pane, "-F", "#{pane_id}")).split("\n").filter(Boolean);
 }
 
 async function stagedWindowName(pane: string): Promise<[name: string, path: string]> {

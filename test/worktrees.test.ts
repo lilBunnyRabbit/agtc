@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseWorktreeList } from "../src/worktrees/read";
-import { isRemovable, stateOf } from "../src/worktrees/state";
+import { isClean, isRemovable, stateOf } from "../src/worktrees/state";
 
 const entry = (overrides = {}) => ({ dir: "/wt/a", head: "abc", branch: "feat/a", bare: false, locked: false, prunable: false, ...overrides });
 const input = (overrides = {}) => ({ entry: entry(), missing: false, track: undefined, dirty: 0, ahead: 0, live: false, ...overrides });
@@ -59,5 +59,12 @@ describe("isRemovable", () => {
     for (const state of ["live", "dirty", "unpushed", "pushed", "detached", "locked", "fresh", "gone", "missing"] as const) {
       expect(isRemovable({ state } as never)).toBe(removable.includes(state));
     }
+  });
+});
+
+describe("isClean", () => {
+  test("nothing uncommitted, nothing only a detached HEAD holds, nobody in it", () => {
+    for (const state of ["fresh", "gone", "pushed", "unpushed", "missing"] as const) expect(isClean({ state })).toBe(true);
+    for (const state of ["live", "locked", "dirty", "detached"] as const) expect(isClean({ state })).toBe(false);
   });
 });

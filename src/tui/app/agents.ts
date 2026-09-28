@@ -7,7 +7,10 @@ import { baseBranch, checkoutName, createWorktree } from "../../sources/git";
 import { OWN_PANE, tmuxHasSession } from "../../tmux/env";
 import { HUB_SESSION } from "../../tmux/hub";
 import { restoreHub } from "../../tmux/restore";
-import { newTmuxWindow, splitPane } from "../../tmux/windows";
+import { killWindowOf, newTmuxWindow, splitPane } from "../../tmux/windows";
+import { readWorktrees } from "../../worktrees/read";
+import { remove } from "../../worktrees/remove";
+import { isClean } from "../../worktrees/state";
 import type { AppContext } from "./context";
 import { showPane } from "./stage";
 
@@ -154,6 +157,53 @@ export function resumeInTmux(ctx: AppContext, session: Session): void {
     ctx.say(`resumed ${session.tool} in ${tildify(session.cwd, HOME)}`);
     await showPane(ctx, paneId);
     ctx.refreshSoon();
+  });
+}
+
+/**
+ * `X`: the agent and its whole tmux window, a reviewer split beside it included. The session
+ * stays in the list as inactive, `R` brings it back. Always asks first. A worktree left clean
+ * and without another agent is offered for removal, never forced.
+ */
+export function closeAgent(ctx: AppContext, session: Session): void {
+  if (session.status === "inactive") {
+    ctx.say("not running");
+    return;
+  }
+  const { tmux } = session;
+  if (!tmux) {
+    ctx.say(`runs outside tmux in ${session.tty ?? "another terminal"}: quit it there`);
+    return;
+  }
+  ctx.ask({ label: `close ${session.status} ${session.tool} "${collapse(session.title, 40)}"? (y/N)` }, (answer) => {
+    if (!saidYes(answer)) return;
+    void killWindowOf(tmux.paneId).then((killed) => {
+      if (!killed.length) {
+        ctx.say(`tmux pane ${tmux.paneId} not found`);
+        return;
+      }
+      ctx.say(`closed ${session.tool} "${collapse(session.title, 40)}"`);
+      ctx.refreshSoon();
+      void offerWorktreeRemoval(ctx, session, killed);
+    });
+  });
+}
+
+const saidYes = (answer: string) => answer.trim().toLowerCase() === "y";
+
+async function offerWorktreeRemoval(ctx: AppContext, session: Session, killed: string[]): Promise<void> {
+  const { root } = session;
+  if (!session.worktree || !root) return;
+  const sessions = ctx.sessions.filter((s) => s.id !== session.id && !(s.tmux && killed.includes(s.tmux.paneId)));
+  const report = await readWorktrees(root, { only: root, sessions });
+  const worktree = report?.worktrees[0];
+  if (!report || !worktree || !isClean(worktree)) return;
+  ctx.ask({ label: `remove worktree ${worktree.name} (${worktree.state})? (y/N)` }, (answer) => {
+    if (!saidYes(answer)) return;
+    void remove(report, worktree, false).then(({ line }) => {
+      ctx.say(line);
+      ctx.refreshSoon();
+    });
   });
 }
 

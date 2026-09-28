@@ -59,4 +59,7 @@ export function stateOf({ entry, missing, track, dirty, ahead, live }: StateInpu
 
 export const isRemovable = ({ state }: Pick<Worktree, "state">) => state === "fresh" || state === "gone" || state === "missing";
 
+/** Nothing uncommitted, and no commit that only a detached HEAD holds: a branch with unpushed commits outlives its worktree. */
+export const isClean = ({ state }: Pick<Worktree, "state">) => canRemove({ state }) && state !== "dirty" && state !== "detached";
+
 export const canRemove = ({ state }: Pick<Worktree, "state">) => state !== "live" && state !== "locked";
