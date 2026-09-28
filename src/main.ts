@@ -1,5 +1,6 @@
 import pkg from "../package.json";
 import { USAGE, parseArgs } from "./cli";
+import { askScreen } from "./commands/ask";
 import { attachAgent } from "./commands/attach";
 import { codeCommand, editCommand } from "./commands/code";
 import { menuScreen } from "./commands/menu";
@@ -62,6 +63,9 @@ switch (options.mode) {
 
   case "menu":
     process.exit(await menuScreen(process.argv[3]));
+
+  case "ask":
+    process.exit(await askScreen(process.argv[3]));
 
   case "tui":
     new App(options, state()).start();

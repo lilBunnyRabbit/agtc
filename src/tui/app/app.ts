@@ -1,5 +1,6 @@
 import type { Options } from "../../cli";
-import { showMenu } from "../../commands/menu";
+import { askInPopup } from "../../commands/ask";
+import { otherAgents, showMenu } from "../../commands/menu";
 import { notify } from "../../desktop/notify";
 import { shownCheckout } from "../../desktop/vscode";
 import { copyToClipboard } from "../../lib/shell";
@@ -13,6 +14,7 @@ import { setupTmux } from "../../tmux/setup";
 import { ANSI } from "../ansi";
 import { Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
 import { terminalSize } from "../layout";
+import { jumpTargets } from "../rows";
 import { type Frame, type UiState, initialUiState, renderFrame } from "../render";
 import { openScreen } from "../terminal";
 import { closeAgent, missingFromLastHub, newAgent, newWorktree, restoreLastHub, resumeInTmux } from "./agents";
@@ -36,6 +38,8 @@ export class App implements AppContext {
   private polled = false;
   private messageTimer: ReturnType<typeof setTimeout> | undefined;
   private onPromptSubmit: ((value: string) => void) | undefined;
+  /** The pane the last key came from, none when it was typed here: questions follow you there. */
+  private askedFrom: string | undefined;
   private restoreOffered = false;
   private frame: Frame | undefined;
   private lastClick: { id: string; at: number } | undefined;
@@ -92,6 +96,7 @@ export class App implements AppContext {
   }
 
   ask(prompt: Ask, submit: (value: string) => void): void {
+    if (this.askedFrom) return void askInPopup(this.askedFrom, prompt).then((value) => value !== undefined && submit(value));
     this.ui.prompt = { ...prompt, value: prompt.value ?? "" };
     this.onPromptSubmit = submit;
     this.draw();
@@ -177,6 +182,7 @@ export class App implements AppContext {
     const fromPane = parsePaneKey(key);
     if (fromPane) return this.handlePaneKey(fromPane);
     if (key === Key.ctrlC) process.exit(0);
+    this.askedFrom = undefined;
     if (this.ui.prompt) this.handlePromptKey(key);
     else if (this.ui.searchMode) {
       if (!searchKey(this, key)) return;
@@ -188,8 +194,9 @@ export class App implements AppContext {
   private handlePaneKey({ paneId, key }: PaneKey): void {
     if (this.ui.prompt) return;
     const session = this.sessions.find((s) => s.status !== "inactive" && s.tmux?.paneId === paneId);
-    if (key === MENU_KEY) return void (OWN_PANE && void showMenu(session, paneId, OWN_PANE));
+    if (key === MENU_KEY) return void (OWN_PANE && void showMenu(session, paneId, OWN_PANE, otherAgents(jumpTargets(this.visible), session)));
     if (!session) return this.say(`no agent in pane ${paneId}`);
+    this.askedFrom = paneId;
     this.ui.searchMode = false;
     if (!this.visible.includes(session)) this.ui.query = "";
     this.select(session);

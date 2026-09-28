@@ -1,4 +1,4 @@
-export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "code" | "edit" | "menu" | "help" | "version";
+export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "code" | "edit" | "menu" | "ask" | "help" | "version";
 export type Jump = "tmux" | "zed";
 
 export interface Options {
@@ -118,7 +118,7 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const command = argv[0]?.startsWith("-") ? undefined : argv[0];
-  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send", code: "code", edit: "edit", menu: "menu" };
+  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send", code: "code", edit: "edit", menu: "menu", ask: "ask" };
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")

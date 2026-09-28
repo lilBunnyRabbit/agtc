@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { menuInfo, tmuxCommands } from "../src/commands/menu";
+import { menuInfo, otherAgents, tmuxCommands } from "../src/commands/menu";
 import type { Session } from "../src/model/session";
 import { stripAnsi } from "../src/tui/ansi";
 import { Key, parsePaneKey } from "../src/tui/keys";
@@ -7,19 +7,25 @@ import { MENU_WIDTH, menuActions, moveSelection, renderMenu } from "../src/tui/m
 
 const session = { tool: "claude", id: "a41f0c22-rest", status: "idle", title: "fix #12 login", branch: "feat/login", cwd: "/tmp/x" } as Session;
 const info = menuInfo(session, "~/x", "%7", "%0");
+const waiting = { ...session, id: "b", status: "needs input", title: "wants an answer" } as Session;
+const busy = { ...session, id: "c", status: "busy", title: "still at it" } as Session;
+const crowded = menuInfo(session, "~/x", "%7", "%0", otherAgents([session, waiting, busy], session));
 const commandsOf = (key: string, from = info) => tmuxCommands(from, menuActions(from).find((action) => action.key === key)!, "'bun' 'agtc'");
 const typedKey = (command: string[]) => parsePaneKey(command.slice(command.indexOf("-H") + 1).map((byte) => String.fromCharCode(parseInt(byte, 16))).join(""));
 
 describe("tmuxCommands", () => {
-  test("an action that asks goes to agtc's pane first, one that does not stays", () => {
-    expect(commandsOf("V").map((command) => command[0])).toEqual(["select-window", "select-pane", "send-keys"]);
+  test("a key is typed into agtc and you stay in the pane", () => {
     expect(commandsOf("m").map((command) => command[0])).toEqual(["send-keys"]);
-    expect(typedKey(commandsOf("V")[2])).toEqual({ paneId: "%7", key: "V" });
     expect(typedKey(commandsOf("m")[0])).toEqual({ paneId: "%7", key: "m" });
   });
 
-  test("what opens a popup waits for the menu to close", () => {
+  test("what opens a popup waits for the menu to close, a question too", () => {
     expect(commandsOf("v")).toEqual([["run-shell", "-b", "sleep 0.2; tmux send-keys -t %0 -H 1b 5b 3e 37 3b 31 31 38 7e"]]);
+    for (const key of ["V", "X", "n"]) expect(commandsOf(key)[0][2]).toStartWith("sleep 0.2; tmux send-keys -t %0 -H");
+  });
+
+  test("a digit goes to agtc as typed there", () => {
+    expect(commandsOf("2", crowded)).toEqual([["select-window", "-t", "%0"], ["send-keys", "-t", "%0", "2"]]);
   });
 
   test("the checkout keys run agtc for the pane", () => {
@@ -50,6 +56,22 @@ describe("renderMenu", () => {
     expect(lines.join("\n")).toContain("fix #12 login");
     expect(lines.join("\n")).toContain("claude  a41f0c22  idle  feat/login");
     expect(lines.some((line) => /^\s+V\s+review\s+e\s+vscode$/.test(line))).toBe(true);
+    expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(MENU_WIDTH);
+  });
+});
+
+describe("otherAgents", () => {
+  test("the pane's own agent is left out, the digits stay the hub's", () => {
+    expect(crowded.others).toEqual([{ title: "wants an answer", status: "needs input", digit: "2" }, { title: "still at it", status: "busy", digit: undefined }]);
+  });
+
+  test("only an agent that waits for you has a key", () => {
+    const keys = menuActions(crowded).map((action) => action.key);
+    expect(keys).toContain("2");
+    expect(keys).not.toContain("3");
+    const lines = renderMenu(crowded).map(stripAnsi);
+    expect(lines.some((line) => /^\s+2\s+input\s+wants an answer$/.test(line))).toBe(true);
+    expect(lines.some((line) => /^\s+busy\s+still at it$/.test(line))).toBe(true);
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(MENU_WIDTH);
   });
 });

@@ -14,10 +14,10 @@ const SEP = "\t";
  */
 export async function focusTmuxPane(paneId: string, stagePercent: number): Promise<boolean> {
   if (!OWN_PANE) {
-    return (await succeeds(["tmux", "select-window", "-t", paneId])) && succeeds(["tmux", "select-pane", "-t", paneId]);
+    return select(paneId);
   }
   const hubPanes = await panesOf(OWN_PANE);
-  if (hubPanes.includes(paneId)) return succeeds(["tmux", "select-pane", "-t", paneId]);
+  if (hubPanes.includes(paneId)) return select(paneId);
 
   // The pane's window is lost once it leaves, so remember the name for the trip back.
   const incoming = await panesOf(paneId);
@@ -30,7 +30,7 @@ export async function focusTmuxPane(paneId: string, stagePercent: number): Promi
     const [stagedName, stagedPath] = await stagedWindowName(staged[0]);
     if (!(await succeeds(["tmux", "swap-pane", "-Z", "-s", paneId, "-t", staged[0]]))) return false;
     await succeeds(["tmux", "rename-window", "-t", staged[0], stagedName || basename(stagedPath)]);
-    return succeeds(["tmux", "select-pane", "-t", paneId]);
+    return select(paneId);
   }
 
   if (staged.length) await unstage(staged);
@@ -38,7 +38,12 @@ export async function focusTmuxPane(paneId: string, stagePercent: number): Promi
   const [first, ...rest] = incoming;
   if (!(await succeeds(["tmux", "join-pane", "-d", "-h", "-l", `${stagePercent}%`, "-s", first, "-t", OWN_PANE]))) return false;
   await joinBeside(first, rest);
-  return succeeds(["tmux", "select-pane", "-t", paneId]);
+  return select(paneId);
+}
+
+/** The window too: a key from a pane in a window of its own leaves you there otherwise. */
+async function select(paneId: string): Promise<boolean> {
+  return (await succeeds(["tmux", "select-window", "-t", paneId])) && succeeds(["tmux", "select-pane", "-t", paneId]);
 }
 
 async function stagedWindowName(pane: string): Promise<[name: string, path: string]> {

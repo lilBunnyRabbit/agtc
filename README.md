@@ -98,7 +98,7 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
 | `prefix space`, `option-space` | tmux keys agtc binds at start: a popup over the pane you are in, naming the session there and giving every action below a key, see [Keys from the agent's pane](#keys-from-the-agents-pane) |
-| `option-n` | tmux key agtc binds at start: `n` for the agent in the pane you are in, and you land in agtc's pane for its question |
+| `option-n` | tmux key agtc binds at start: `n` for the agent in the pane you are in; the question comes as a popup over that pane, and you land on the new agent |
 | `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `J`, `K` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
 
 ## Flows
@@ -208,17 +208,22 @@ Sessions in Terminal.app tabs keep working as before; agtc uses whichever the se
 
 | Key | Does | Where you end up |
 | --- | --- | --- |
-| `V` | starts a reviewer beside the agent; on a reviewer's pane it pastes the report into the reviewed agent | agtc's pane, which asks for the spec and the tool |
-| `X` | closes the agent and its window; `x` on a reviewer's pane closes the reviewer | agtc's pane, which asks y/N |
-| `n` | another agent; `option-n` does it without the popup | agtc's pane, which asks where |
+| `V` | starts a reviewer beside the agent; on a reviewer's pane it pastes the report into the reviewed agent | on the reviewer, after a popup asked for the spec and the tool |
+| `X` | closes the agent and its window; `x` on a reviewer's pane closes the reviewer | wherever tmux puts you, after a popup asked y/N |
+| `n` | another agent; `option-n` does it without the popup | on the new agent, after a popup asked where |
 | `v` | lazygit over the checkout in a popup | where you were |
 | `e`, `o` | the checkout in the agtc VS Code window, in the editor | where you were |
 | `J`, `K` | the running agent above, below | on that agent |
 | `m`, `c` | mark seen, copy the resume command | where you were |
 | `a` | back to agtc | agtc's pane |
+| a digit | the agent with that digit in the list under the keys | on that agent |
 | `space` | tmux's `next-layout`, which `prefix space` was before | where you were |
 
 Arrows mark an action and `enter` runs it; `esc` or `q` closes the popup. While it is open the pane's border takes the popup's colour. A pane without an agent gets `e`, `o`, `a` and `space` for the directory it is in.
+
+Under the keys the popup lists the other running agents with their status. One that is done or needs input carries its digit from the hub, and that digit takes you there; the rest have none, `option-1` to `option-9` still reach them.
+
+A key from a pane never sends you to agtc for an answer. What it asks comes as a popup over the pane: type, `tab` or the arrows walk the choices, `enter` answers, `esc` drops the question. The same keys typed in agtc ask in its footer, as before.
 
 Holding option alone cannot open it: a terminal sends nothing for a modifier until a key comes with it. The key types an escape sequence naming your pane into agtc, which holds the sessions and opens the popup with what it knows, so nothing is scanned. Every action but `e` and `o` reaches agtc the same way, so agtc selects that row and does what the key does there.
 

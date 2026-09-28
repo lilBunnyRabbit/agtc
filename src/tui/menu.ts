@@ -2,18 +2,27 @@ import { truncate } from "../lib/text";
 import type { Status, Tool } from "../model/session";
 import { ANSI, style, visibleLength } from "./ansi";
 import { Key } from "./keys";
-import { ICON, statusStyle } from "./theme";
+import { ICON, STATUS_LABEL, statusStyle } from "./theme";
 
 export const MENU_WIDTH = 60;
 const MARGIN = 2;
 const INDENT = "  ";
 const COLUMN_WIDTH = (MENU_WIDTH - MARGIN * 2) / 2;
 const KEY_WIDTH = 8;
+const DIGIT_WIDTH = 3;
+const STATUS_WIDTH = 7;
+
+export interface Other {
+  title: string;
+  status: Status;
+  digit?: string;
+}
 
 export interface MenuInfo {
   pane: string;
   hub: string;
   where: string;
+  others: Other[];
   kind: "agent" | "reviewer" | "none";
   title?: string;
   tool?: Tool;
@@ -22,13 +31,12 @@ export interface MenuInfo {
   branch?: string;
 }
 
-/** `hub`: the key goes to agtc, which acts on the pane's row. `own`: an agtc command for the pane. */
+/** `hub`: the key goes to agtc, which acts on the pane's row. `own`: an agtc command for the pane. `jump`: the digit, as typed in agtc. */
 export interface Action {
   key: string;
   label: string;
-  does: "hub" | "own" | "back" | "layout";
+  does: "hub" | "own" | "back" | "layout" | "jump";
   command?: string;
-  asks?: boolean;
   opensPopup?: boolean;
 }
 
@@ -61,15 +69,17 @@ function columns({ kind }: MenuInfo): [Group[], Group[]] {
   const agent: Group =
     kind === "reviewer"
       ? { name: "reviewer", actions: [hub("V", "paste report"), hub("x", "close"), hub("m", "mark seen"), hub("c", "copy resume")] }
-      : { name: "agent", actions: [hub("V", "review", { asks: true }), hub("X", "close", { asks: true }), hub("m", "mark seen"), hub("c", "copy resume")] };
-  const fresh: Group = { name: "new", actions: [hub("n", "agent", { asks: true })] };
+      : { name: "agent", actions: [hub("V", "review", { opensPopup: true }), hub("X", "close", { opensPopup: true }), hub("m", "mark seen"), hub("c", "copy resume")] };
+  const fresh: Group = { name: "new", actions: [hub("n", "agent", { opensPopup: true })] };
   return [
     [agent, fresh],
     [open, move],
   ];
 }
 
-export const menuActions = (info: MenuInfo): Action[] => columns(info).flatMap((groups) => groups.flatMap((group) => group.actions));
+const jumps = ({ others }: MenuInfo): Action[] => others.flatMap(({ digit, title }) => (digit ? [{ key: digit, label: title, does: "jump" }] : []));
+
+export const menuActions = (info: MenuInfo): Action[] => [...columns(info).flatMap((groups) => groups.flatMap((group) => group.actions)), ...jumps(info)];
 
 const keyName = (key: string) => (key === " " ? "space" : key);
 
@@ -104,12 +114,22 @@ function header({ kind, title, tool, id, status, branch, where }: MenuInfo): str
   return [name, ...(what ? [what] : []), where].map((line) => INDENT + line);
 }
 
+function otherLines({ others }: MenuInfo): string[] {
+  if (!others.length) return [];
+  const room = MENU_WIDTH - MARGIN * 2 - INDENT.length - DIGIT_WIDTH - STATUS_WIDTH;
+  const rows = others.map(({ digit, status, title }) => {
+    const label = style(STATUS_LABEL[status].padEnd(STATUS_WIDTH), ...statusStyle(status));
+    return `${INDENT}${style((digit ?? "").padEnd(DIGIT_WIDTH), ANSI.bold, ANSI.yellow)}${label}${digit ? truncate(title, room) : style(truncate(title, room), ANSI.dim)}`;
+  });
+  return ["", INDENT + style("OTHER AGENTS", ANSI.dim), ...rows];
+}
+
 export function renderMenu(info: MenuInfo, selected?: Action): string[] {
   const [left, right] = columns(info).map((groups) => columnLines(groups, selected));
   const rows = Array.from({ length: Math.max(left.length, right.length) }, (_, i) => {
     const cell = left[i] ?? "";
     return `${cell}${" ".repeat(Math.max(1, COLUMN_WIDTH - visibleLength(cell)))}${right[i] ?? ""}`;
   });
-  const lines = ["", ...header(info), "", ...rows, "", INDENT + style("↑↓←→ select   enter runs   esc closes", ANSI.dim), ""];
+  const lines = ["", ...header(info), "", ...rows, ...otherLines(info), "", INDENT + style("↑↓←→ select   enter runs   esc closes", ANSI.dim), ""];
   return lines.map((line) => " ".repeat(MARGIN) + line);
 }
