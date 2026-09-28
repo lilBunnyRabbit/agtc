@@ -39,7 +39,7 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
    4    ⬡  idle      Can the chart legend be restyled                          1h
 ```
 
-- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews; the digit left of a running row is its `1`…`9` key
+- `✳` Claude Code, `⬡` Codex, `⎇` session lives in a git worktree, `╰ review` a reviewer started with `V`, hanging off the session it reviews; the digit left of a row that is done or needs input is its `1`…`9` key
 - **needs input** blocked on a permission or dialog
 - **done** turn finished after your last prompt and you have not looked at it yet
 - **busy** working, **idle** waiting for you, **inactive** not running (recent history)
@@ -77,7 +77,7 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | --- | --- |
 | `j` `k` `↑↓` | move the selection up / down, inactive rows included |
 | `J` `K` | the running session above / below, selected and jumped to in one key, wrapping around |
-| `1`…`9` | the running session with that digit, drawn left of its row, selected and jumped to |
+| `1`…`9` | the session with that digit, drawn left of its row, selected and jumped to; only a session that is done or needs input has one |
 | `enter` | jump to that session: its Terminal.app tab, or its tmux pane (inside tmux it joins agtc's window, see below) |
 | `o` | open the checkout in the editor (`AGTC_EDITOR`, default `zed`) at the most recently changed file |
 | `v` | review the checkout in a tmux popup: `lazygit` if installed, else `git diff HEAD` |
@@ -172,7 +172,7 @@ Run that from any terminal you like, Zed's included. Inside the hub:
 
 - `n` starts an agent in its own tmux window and shows it. It asks where first, prefilled with the selected session's checkout; `tab` cycles through every checkout in the list, or type a path. Windows are named after the checkout: `agtc`, or `agtc/feat+x` in a worktree.
 - `N` asks for a branch name, adds a worktree from the main checkout (`git worktree add -b <name> <dir> <base>`, or the existing branch when there is one, after fetching a remote base) and starts an agent there. Directory `<main checkout>/.claude/worktrees/<name>` with `/` turned into `+`, like Claude Code's own worktrees; change it with `--worktrees`.
-- `option-j` / `option-k` from any pane stage the running agent above / below; `option-1` to `option-9` stage the one with that digit in the list. Each is a tmux root binding that selects agtc's window and types `J`, `K` or the digit into agtc, so the list moves with you. Bound only when the key is free.
+- `option-j` / `option-k` from any pane stage the running agent above / below; `option-1` to `option-9` stage the one with that digit in the list, an agent that is done or needs input. Each is a tmux root binding that selects agtc's window and types `J`, `K` or the digit into agtc, so the list moves with you. Bound only when the key is free.
 - `enter` moves the selected agent's pane into agtc's window as the stage; the agent that was there goes back to a window of its own. Windows keep their names. The first stage goes right of agtc, `--stage` percent wide; after that the two panes swap places, so the hub layout stays as you left it. Rearranging is tmux's job: `prefix space space` flips to stacked, dragging the border resizes, `prefix z` zooms the stage to full screen. On a small screen skip `enter` and switch windows with `prefix w` or `prefix n`, then `prefix a` back to agtc.
 - `v` opens lazygit over the checkout as a popup; `q` closes it and you are back in agtc.
 - `V` starts a reviewer read-only, with a prompt written to `~/.cache/agtc/prompts/`, as a split beside the reviewed session's pane, so both are on screen; staging either one brings the other along, and whatever leaves the stage leaves together. A session outside tmux gets its reviewer in a window named `<checkout> review`. agtc remembers which session it reviews, so the pairing survives restarts and `S`. `V` on the reviewer pastes its last message into the reviewed session's pane the way `agtc send` does: bracketed, nothing submitted. A reviewed session that is not in tmux, or not running, gets the report on the clipboard instead.
@@ -221,7 +221,7 @@ Sessions in Terminal.app tabs keep working as before; agtc uses whichever the se
 
 Arrows mark an action and `enter` runs it; `esc` or `q` closes the popup. While it is open the pane's border takes the popup's colour. A pane without an agent gets `e`, `o`, `a` and `space` for the directory it is in.
 
-Under the keys the popup lists the other running agents with their status. One that is done or needs input carries its digit from the hub, and that digit takes you there; the rest have none, `option-1` to `option-9` still reach them.
+Under the keys the popup lists the other agents that are done or need input, each with its digit from the hub, and that digit takes you there. `option-1` to `option-9` do the same without the popup.
 
 A key from a pane never sends you to agtc for an answer. What it asks comes as a popup over the pane: type, `tab` or the arrows walk the choices, `enter` answers, `esc` drops the question. The same keys typed in agtc ask in its footer, as before.
 

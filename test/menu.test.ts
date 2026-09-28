@@ -8,8 +8,8 @@ import { MENU_WIDTH, menuActions, moveSelection, renderMenu } from "../src/tui/m
 const session = { tool: "claude", id: "a41f0c22-rest", status: "idle", title: "fix #12 login", branch: "feat/login", cwd: "/tmp/x" } as Session;
 const info = menuInfo(session, "~/x", "%7", "%0");
 const waiting = { ...session, id: "b", status: "needs input", title: "wants an answer" } as Session;
-const busy = { ...session, id: "c", status: "busy", title: "still at it" } as Session;
-const crowded = menuInfo(session, "~/x", "%7", "%0", otherAgents([session, waiting, busy], session));
+const finished = { ...session, id: "c", status: "done", title: "all done" } as Session;
+const crowded = menuInfo(session, "~/x", "%7", "%0", otherAgents([waiting, session, finished], waiting));
 const commandsOf = (key: string, from = info) => tmuxCommands(from, menuActions(from).find((action) => action.key === key)!, "'bun' 'agtc'");
 const typedKey = (command: string[]) => parsePaneKey(command.slice(command.indexOf("-H") + 1).map((byte) => String.fromCharCode(parseInt(byte, 16))).join(""));
 
@@ -25,7 +25,7 @@ describe("tmuxCommands", () => {
   });
 
   test("a digit goes to agtc as typed there", () => {
-    expect(commandsOf("2", crowded)).toEqual([["select-window", "-t", "%0"], ["send-keys", "-t", "%0", "2"]]);
+    expect(commandsOf("3", crowded)).toEqual([["select-window", "-t", "%0"], ["send-keys", "-t", "%0", "3"]]);
   });
 
   test("the checkout keys run agtc for the pane", () => {
@@ -62,16 +62,13 @@ describe("renderMenu", () => {
 
 describe("otherAgents", () => {
   test("the pane's own agent is left out, the digits stay the hub's", () => {
-    expect(crowded.others).toEqual([{ title: "wants an answer", status: "needs input", digit: "2" }, { title: "still at it", status: "busy", digit: undefined }]);
+    expect(crowded.others).toEqual([{ title: "fix #12 login", status: "idle", digit: "2" }, { title: "all done", status: "done", digit: "3" }]);
   });
 
-  test("only an agent that waits for you has a key", () => {
-    const keys = menuActions(crowded).map((action) => action.key);
-    expect(keys).toContain("2");
-    expect(keys).not.toContain("3");
+  test("each is listed with its digit as a key", () => {
+    expect(menuActions(crowded).map((action) => action.key)).toContain("3");
     const lines = renderMenu(crowded).map(stripAnsi);
-    expect(lines.some((line) => /^\s+2\s+input\s+wants an answer$/.test(line))).toBe(true);
-    expect(lines.some((line) => /^\s+busy\s+still at it$/.test(line))).toBe(true);
+    expect(lines.some((line) => /^\s+3\s+done\s+all done$/.test(line))).toBe(true);
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(MENU_WIDTH);
   });
 });

@@ -1,7 +1,6 @@
 import { shellQuote, succeeds } from "../lib/shell";
 import { tildify } from "../lib/text";
 import { type Session, workDir } from "../model/session";
-import { needsAttention } from "../tui/theme";
 import { HOME } from "../paths";
 import { agtcShell, tmux } from "../tmux/env";
 import { ANSI } from "../tui/ansi";
@@ -20,10 +19,10 @@ export function menuInfo(session: Session | undefined, where: string, pane: stri
   return { pane, hub, where, others, kind: session.reviewOf ? "reviewer" : "agent", title, tool, status, branch, id: session.id.slice(0, ID_LENGTH) };
 }
 
-/** The hub's digits, so a number means one agent everywhere. Only an agent that waits for you shows its. */
+/** The hub's digits, so a number means one agent everywhere. */
 export function otherAgents(targets: Session[], session: Session | undefined): Other[] {
   return targets
-    .map(({ id, title, status }, index) => ({ id, title, status, digit: needsAttention(status) ? String(index + 1) : undefined }))
+    .map(({ id, title, status }, index) => ({ id, title, status, digit: String(index + 1) }))
     .filter(({ id }) => id !== session?.id)
     .map(({ id, ...other }) => other);
 }

@@ -8,7 +8,7 @@ import { visibleLength } from "./ansi";
  *   │ │ │ │  │  status    title (fills the rest)                   age
  *   │ │ │ │  tool icon
  *   │ │ │ worktree icon
- *   │ │ jump digit: the key that stages this session, live rows 1-9
+ *   │ │ jump digit: the key that stages this session, rows that wait for you, 1-9
  *   │ selection bar
  *   left margin
  */

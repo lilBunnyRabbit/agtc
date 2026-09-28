@@ -31,8 +31,9 @@ export function repoRule(repo: string, sessions: Session[], layout: Layout): str
 
 const JUMP_KEYS = 9;
 
+/** Only what waits for you: a digit on every running row says nothing about where to go next. */
 export function jumpTargets(visible: Session[]): Session[] {
-  return visible.filter((s) => s.status !== "inactive").slice(0, JUMP_KEYS);
+  return visible.filter((s) => needsAttention(s.status)).slice(0, JUMP_KEYS);
 }
 
 export function selectionBar(isSelected: boolean): string {

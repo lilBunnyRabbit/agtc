@@ -15,7 +15,7 @@ const STATUS_WIDTH = 7;
 export interface Other {
   title: string;
   status: Status;
-  digit?: string;
+  digit: string;
 }
 
 export interface MenuInfo {
@@ -77,7 +77,7 @@ function columns({ kind }: MenuInfo): [Group[], Group[]] {
   ];
 }
 
-const jumps = ({ others }: MenuInfo): Action[] => others.flatMap(({ digit, title }) => (digit ? [{ key: digit, label: title, does: "jump" }] : []));
+const jumps = ({ others }: MenuInfo): Action[] => others.map(({ digit, title }) => ({ key: digit, label: title, does: "jump" }));
 
 export const menuActions = (info: MenuInfo): Action[] => [...columns(info).flatMap((groups) => groups.flatMap((group) => group.actions)), ...jumps(info)];
 
@@ -119,9 +119,9 @@ function otherLines({ others }: MenuInfo): string[] {
   const room = MENU_WIDTH - MARGIN * 2 - INDENT.length - DIGIT_WIDTH - STATUS_WIDTH;
   const rows = others.map(({ digit, status, title }) => {
     const label = style(STATUS_LABEL[status].padEnd(STATUS_WIDTH), ...statusStyle(status));
-    return `${INDENT}${style((digit ?? "").padEnd(DIGIT_WIDTH), ANSI.bold, ANSI.yellow)}${label}${digit ? truncate(title, room) : style(truncate(title, room), ANSI.dim)}`;
+    return `${INDENT}${style(digit.padEnd(DIGIT_WIDTH), ANSI.bold, ANSI.yellow)}${label}${truncate(title, room)}`;
   });
-  return ["", INDENT + style("OTHER AGENTS", ANSI.dim), ...rows];
+  return ["", INDENT + style("WAITING FOR YOU", ANSI.dim), ...rows];
 }
 
 export function renderMenu(info: MenuInfo, selected?: Action): string[] {
