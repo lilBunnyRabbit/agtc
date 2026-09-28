@@ -3,7 +3,7 @@ import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../model/search";
-import { type Session, type Status, STATUSES, type Tool, type Verdict } from "../model/session";
+import { type Session, type Status, STATUSES, type Tool, type Verdict, workDir } from "../model/session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import {
   AGE_WIDTH,
@@ -37,6 +37,8 @@ export interface UiState {
   prompt?: Prompt;
   message: string;
   refreshedAt: number;
+  /** The checkout the agtc VS Code window shows, while that window is open. */
+  inEditor?: string;
 }
 
 export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
@@ -52,6 +54,7 @@ export interface Frame {
 const HEADER_LINES = 2; // header + blank line
 const MIN_LIST_LINES = 3;
 const MAX_EXTRA_ROOTS = 2;
+const EDITOR_TAG = " vscode ";
 
 export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame {
   const layout = computeLayout(size);
@@ -135,7 +138,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id)), session);
+    push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id), workDir(session) === ui.inEditor), session);
     const snippet = matchSnippet(session, ui.query);
     if (snippet) push(snippetLine(snippet, isSelected, layout), session);
   });
@@ -151,7 +154,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
  */
-function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined): string {
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined, inEditor = false): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
   const nested = !!session.reviewOf;
@@ -165,7 +168,8 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
     status: statusCell(session.status),
   });
   const verdict = session.verdict ? verdictTag(session.verdict, inactive) : "";
-  const room = layout.titleWidth - visibleLength(branch) - visibleLength(verdict);
+  const editor = inEditor ? ` ${style(EDITOR_TAG, ANSI.cyan, ANSI.bold, ANSI.reverse)}` : "";
+  const room = layout.titleWidth - visibleLength(branch) - visibleLength(verdict) - visibleLength(editor);
   const title = truncate(underSubject ? "review" : session.title, room);
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
@@ -176,7 +180,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
         : title;
   const fill = " ".repeat(Math.max(0, room - title.length));
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + branch + styledTitle + verdict + fill + rowSuffix(age);
+  return prefix + branch + styledTitle + verdict + fill + editor + rowSuffix(age);
 }
 
 function snippetLine(snippet: string, isSelected: boolean, layout: Layout): string {
@@ -328,6 +332,7 @@ function rowKeys(ui: UiState, session: Session | undefined): string[] {
     ...(session.status === "done" ? ["m seen"] : []),
     ...(live ? [] : ["c copy resume"]),
     "o editor",
+    "e vscode",
     "v diff",
     session.reviewOf ? "V report" : "V review agent",
     ...(session.reviewOf && live ? ["x close"] : []),
@@ -347,6 +352,7 @@ function allKeys(ui: UiState): string[] {
     `/ search${ui.query ? " (esc clears)" : ""}`,
     `enter ${ui.enterHint}`,
     "o editor",
+    "e vscode",
     "v diff",
     "V review agent / report",
     "x close reviewer",

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { showInCode } from "../../commands/code";
 import { openInEditor } from "../../desktop/editor";
 import { shellQuote } from "../../lib/shell";
 import { tildify } from "../../lib/text";
@@ -78,6 +79,16 @@ export function openEditor(ctx: AppContext, session: Session): void {
   ctx.state.markOpened(dir, session.id);
   const command = openInEditor(session);
   ctx.say(command ? `opened: ${command}` : "editor not found. Set AGTC_EDITOR.");
+}
+
+export function openVscode(ctx: AppContext, session: Session): void {
+  const dir = existingWorkDir(ctx, session);
+  if (!dir) return;
+  ctx.say("switching VS Code…");
+  void showInCode(dir, session).then(({ text }) => {
+    ctx.say(text);
+    void ctx.refresh();
+  });
 }
 
 export function showHelp(ctx: AppContext): void {

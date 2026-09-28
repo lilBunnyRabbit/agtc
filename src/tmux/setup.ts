@@ -1,4 +1,4 @@
-import { succeeds } from "../lib/shell";
+import { shellQuote, succeeds } from "../lib/shell";
 import { tmux } from "./env";
 
 const BACK_KEYS: [table: string, key: string][] = [
@@ -11,7 +11,12 @@ const JUMP_KEYS: [key: string, agtcKey: string][] = [
   ...Array.from({ length: 9 }, (_, i): [string, string] => [`M-${i + 1}`, String(i + 1)]),
 ];
 /** A binding of ours: an earlier run's pane id (list-keys prints it quoted), or the line the README used to ask for. */
-const OUR_BINDING = /(select-pane -Z -t "?(%\d+|hub\.0)"?|send-keys -t "?%\d+"? \S+)$/;
+const OUR_BINDING = /(select-pane -Z -t "?(%\d+|hub\.0)"?|send-keys -t "?%\d+"? \S+| (code|edit) --pane #\{pane_id\}\\?"?)$/;
+const CODE_KEYS: [table: string, key: string][] = [
+  ["prefix", "e"],
+  ["root", "M-e"],
+];
+const EDIT_KEY = "M-o";
 const KEY_LINE = /^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/;
 
 /**
@@ -25,7 +30,10 @@ export async function setupTmux(ownPane: string): Promise<void> {
   await succeeds(["tmux", "set-environment", "-t", ownPane, "CLAUDE_CODE_TMUX_TRUECOLOR", "1"]);
   // One argument: tmux parses the string itself, an argv `;` would end the bind-key command instead.
   const back = `select-window -t ${ownPane} ; select-pane -Z -t ${ownPane}`;
+  const self = [process.execPath, process.argv[1]].map(shellQuote).join(" ");
   const bindings: [table: string, key: string, command: string][] = [
+    ["root", EDIT_KEY, `run-shell -b "${self} edit --pane #{pane_id}"`],
+    ...CODE_KEYS.map(([table, key]): [string, string, string] => [table, key, `run-shell -b "${self} code --pane #{pane_id}"`]),
     ...BACK_KEYS.map(([table, key]): [string, string, string] => [table, key, back]),
     ...JUMP_KEYS.map(([key, agtcKey]): [string, string, string] => ["root", key, `select-window -t ${ownPane} ; send-keys -t ${ownPane} ${agtcKey}`]),
   ];

@@ -1,5 +1,6 @@
 import type { Options } from "../../cli";
 import { notify } from "../../desktop/notify";
+import { shownCheckout } from "../../desktop/vscode";
 import { copyToClipboard } from "../../lib/shell";
 import { plural } from "../../lib/text";
 import { filterSessions } from "../../model/search";
@@ -17,7 +18,7 @@ import { closeAgent, missingFromLastHub, newAgent, newWorktree, restoreLastHub, 
 import type { AppContext, Ask } from "./context";
 import { editPrompt, searchKey } from "./input";
 import { closeReviewer, reportFindings, startReviewer } from "./review";
-import { focus, jumpBy, jumpTo, openEditor, reviewDiff, showHelp } from "./stage";
+import { focus, jumpBy, jumpTo, openEditor, openVscode, reviewDiff, showHelp } from "./stage";
 
 const MESSAGE_TTL_MS = 3000;
 /** Nothing reports a double click natively. */
@@ -122,6 +123,7 @@ export class App implements AppContext {
       const selectedId = this.selected?.id;
       this.sessions = next;
       this.ui.refreshedAt = Date.now();
+      this.ui.inEditor = shownCheckout();
       const index = selectedId ? filterSessions(next, this.ui).findIndex((s) => s.id === selectedId) : -1;
       if (index >= 0) this.ui.selected = index;
       this.clampSelection();
@@ -265,6 +267,9 @@ export class App implements AppContext {
         return;
       case "o":
         if (session) openEditor(this, session);
+        return;
+      case "e":
+        if (session) openVscode(this, session);
         return;
       case "v":
         if (session) reviewDiff(this, session);

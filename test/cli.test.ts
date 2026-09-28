@@ -19,7 +19,7 @@ describe("parseArgs", () => {
   });
 
   test("subcommands map to modes, unknown ones to help", () => {
-    for (const command of ["update", "tmux", "graph", "worktrees", "attach", "send"]) expect(parseArgs([command]).mode as string).toBe(command);
+    for (const command of ["update", "tmux", "graph", "worktrees", "attach", "send", "code", "edit"]) expect(parseArgs([command]).mode as string).toBe(command);
     expect(parseArgs(["bogus"]).mode).toBe("help");
   });
 

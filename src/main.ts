@@ -1,6 +1,7 @@
 import pkg from "../package.json";
 import { USAGE, parseArgs } from "./cli";
 import { attachAgent } from "./commands/attach";
+import { codeCommand, editCommand } from "./commands/code";
 import { watchGraph } from "./commands/graph";
 import { sendToAgent } from "./commands/send";
 import { selfUpdate } from "./commands/update";
@@ -51,6 +52,12 @@ switch (options.mode) {
 
   case "send":
     process.exit(await sendToAgent({ dir: options.dir, file: options.file, row: options.row, selection: process.env.AGTC_SELECTION }));
+
+  case "code":
+    process.exit(await codeCommand({ dir: options.dir, pane: options.pane }));
+
+  case "edit":
+    process.exit(await editCommand({ dir: options.dir, pane: options.pane }));
 
   case "tui":
     new App(options, state()).start();

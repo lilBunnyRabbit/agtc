@@ -14,6 +14,17 @@ const sessions = [
 ];
 
 describe("renderFrame", () => {
+  test("tags the rows whose checkout the VS Code window shows", () => {
+    const shown = [session({ id: "e1", title: "In the editor", root: "/repo/shown" }), session({ id: "e2", title: "Elsewhere" })];
+    const rows = (inEditor?: string) =>
+      renderFrame(shown, { ...initialUiState(false), showDetail: false, inEditor }, { columns: 100, rows: 20 })
+        .lines.map(stripAnsi)
+        .filter((line) => !line.includes("e vscode"));
+    expect(rows("/repo/shown").filter((line) => line.includes(" vscode "))).toHaveLength(1);
+    expect(rows("/repo/shown").find((line) => line.includes(" vscode "))).toContain("In the editor");
+    expect(rows().some((line) => line.includes(" vscode "))).toBe(false);
+  });
+
   test("fills the terminal exactly and never overflows a line", () => {
     for (const size of [{ columns: 140, rows: 40 }, { columns: 76, rows: 24 }, { columns: 40, rows: 12 }]) {
       const frame = renderFrame(sessions, initialUiState(true), size);

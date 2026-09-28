@@ -1,4 +1,4 @@
-export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "help" | "version";
+export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "code" | "edit" | "help" | "version";
 export type Jump = "tmux" | "zed";
 
 export interface Options {
@@ -19,6 +19,7 @@ export interface Options {
   dir: string;
   file?: string;
   row?: string;
+  pane?: string;
   action?: "prune" | "rm";
   name?: string;
   force: boolean;
@@ -40,6 +41,12 @@ Usage
   agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
   agtc send [DIR] --file F --row N
                        type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
+  agtc code [DIR]      show DIR's checkout (default cwd) in the agtc VS Code window, opening the
+                       window when there is none, and link the Claude agent running there to
+                       it with /ide. --pane ID takes the agent in that tmux pane instead;
+                       prefix e or option-e in any pane of the hub's session does that
+  agtc edit [DIR]      open DIR's checkout (default cwd) in the editor, like o in the hub.
+                       --pane ID takes the agent in that tmux pane; option-o does that
   agtc worktrees [DIR] the worktrees of DIR's repository (default cwd): what runs or last ran in
                        each, uncommitted and unpushed work, which ones are safe to remove (✓).
                        In a terminal it is a list with a checkbox per row: the safe ones start
@@ -74,7 +81,7 @@ Environment
   AGTC_BASE            same as --base
   AGTC_JUMP            same as --jump
   AGTC_NOTIFY          0 is the same as --no-notify
-  AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no prefix-a / option-a bindings
+  AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no prefix-a / option-a / prefix-e / option-e / option-o bindings
   AGTC_SELECTION       selected code for agtc send
 
 States
@@ -111,7 +118,7 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const command = argv[0]?.startsWith("-") ? undefined : argv[0];
-  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send" };
+  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send", code: "code", edit: "edit" };
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")
@@ -147,6 +154,7 @@ export function parseArgs(argv: string[]): Options {
     dir: positional ?? process.cwd(),
     file: stringAfter("--file"),
     row: stringAfter("--row"),
+    pane: stringAfter("--pane"),
     action,
     name,
     force: has("--force"),
