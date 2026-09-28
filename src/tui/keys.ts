@@ -67,3 +67,21 @@ function mouseEvent(code: number, x: number, y: number, release: boolean): Mouse
 export function isPrintable(key: string): boolean {
   return key.length === 1 && key >= " ";
 }
+
+export interface PaneKey {
+  paneId: string;
+  key: string;
+}
+
+const PANE_KEY = /^\x1b\[>(\d+);(\d+)~$/;
+
+/** A key meant for the agent in another pane, typed into agtc by the tmux menu. Shaped as CSI so it arrives whole. */
+export const paneKey = ({ paneId, key }: PaneKey) => `\x1b[>${paneId.slice(1)};${key.charCodeAt(0)}~`;
+
+/** Asks for the menu of actions instead of one of them. */
+export const MENU_KEY = " ";
+
+export function parsePaneKey(key: string): PaneKey | undefined {
+  const match = key.match(PANE_KEY);
+  return match ? { paneId: `%${match[1]}`, key: String.fromCharCode(Number(match[2])) } : undefined;
+}

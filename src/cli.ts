@@ -44,9 +44,9 @@ Usage
   agtc code [DIR]      show DIR's checkout (default cwd) in the agtc VS Code window, opening the
                        window when there is none, and link the Claude agent running there to
                        it with /ide. --pane ID takes the agent in that tmux pane instead;
-                       prefix e or option-e in any pane of the hub's session does that
+                       prefix space, then e, does that
   agtc edit [DIR]      open DIR's checkout (default cwd) in the editor, like o in the hub.
-                       --pane ID takes the agent in that tmux pane; option-o does that
+                       --pane ID takes the agent in that tmux pane; prefix space, then o, does that
   agtc worktrees [DIR] the worktrees of DIR's repository (default cwd): what runs or last ran in
                        each, uncommitted and unpushed work, which ones are safe to remove (✓).
                        In a terminal it is a list with a checkbox per row: the safe ones start
@@ -81,7 +81,7 @@ Environment
   AGTC_BASE            same as --base
   AGTC_JUMP            same as --jump
   AGTC_NOTIFY          0 is the same as --no-notify
-  AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no prefix-a / option-a / prefix-e / option-e / option-o bindings
+  AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no key bindings
   AGTC_SELECTION       selected code for agtc send
 
 States

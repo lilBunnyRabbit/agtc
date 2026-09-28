@@ -97,6 +97,7 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | `q` | quit |
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
 | `prefix a`, `option-a` | tmux keys agtc binds at start: back to agtc's pane from any window in the session. `option-a` needs the terminal to send option as meta |
+| `prefix space`, `option-space` | tmux keys agtc binds at start: a menu over the pane you are in, naming the session there and giving every action below a key, see [Keys from the agent's pane](#keys-from-the-agents-pane) |
 | `option-j`, `option-k`, `option-1`…`option-9` | tmux keys agtc binds at start: `J`, `K` or the digit, typed into agtc from whatever pane you are in, so you loop between agents without leaving the one you are typing in |
 
 ## Flows
@@ -171,7 +172,7 @@ Run that from any terminal you like, Zed's included. Inside the hub:
 - `n` starts an agent in its own tmux window and shows it. It asks where first, prefilled with the selected session's checkout; `tab` cycles through every checkout in the list, or type a path. Windows are named after the checkout: `agtc`, or `agtc/feat+x` in a worktree.
 - `N` asks for a branch name, adds a worktree from the main checkout (`git worktree add -b <name> <dir> <base>`, or the existing branch when there is one, after fetching a remote base) and starts an agent there. Directory `<main checkout>/.claude/worktrees/<name>` with `/` turned into `+`, like Claude Code's own worktrees; change it with `--worktrees`.
 - `option-j` / `option-k` from any pane stage the running agent above / below; `option-1` to `option-9` stage the one with that digit in the list. Each is a tmux root binding that selects agtc's window and types `J`, `K` or the digit into agtc, so the list moves with you. Bound only when the key is free.
-- `enter` moves the selected agent's pane into agtc's window as the stage; the agent that was there goes back to a window of its own. Windows keep their names. The first stage goes right of agtc, `--stage` percent wide; after that the two panes swap places, so the hub layout stays as you left it. Rearranging is tmux's job: `prefix space` flips to stacked, dragging the border resizes, `prefix z` zooms the stage to full screen. On a small screen skip `enter` and switch windows with `prefix w` or `prefix n`, then `prefix a` back to agtc.
+- `enter` moves the selected agent's pane into agtc's window as the stage; the agent that was there goes back to a window of its own. Windows keep their names. The first stage goes right of agtc, `--stage` percent wide; after that the two panes swap places, so the hub layout stays as you left it. Rearranging is tmux's job: `prefix space space` flips to stacked, dragging the border resizes, `prefix z` zooms the stage to full screen. On a small screen skip `enter` and switch windows with `prefix w` or `prefix n`, then `prefix a` back to agtc.
 - `v` opens lazygit over the checkout as a popup; `q` closes it and you are back in agtc.
 - `V` starts a reviewer read-only, with a prompt written to `~/.cache/agtc/prompts/`, as a split beside the reviewed session's pane, so both are on screen; staging either one brings the other along, and whatever leaves the stage leaves together. A session outside tmux gets its reviewer in a window named `<checkout> review`. agtc remembers which session it reviews, so the pairing survives restarts and `S`. `V` on the reviewer pastes its last message into the reviewed session's pane the way `agtc send` does: bracketed, nothing submitted. A reviewed session that is not in tmux, or not running, gets the report on the clipboard instead.
 - `o` opens the checkout in Zed at its most recently changed file. Each checkout is its own workspace in Zed's sidebar, so the git panel and the project panel are that checkout's. Zed's sidebar needs the agent panel enabled (`agent.enabled`, the default); with it off, Zed opens a window per checkout instead.
@@ -193,12 +194,32 @@ Everything below is stock tmux; the prefix is `ctrl-b`, pressed and released bef
 
 - Switch windows: `prefix w` opens a chooser, `prefix n` / `prefix p` go next and previous, `prefix 0`..`9` by number, `prefix l` the window you came from. With `mouse on`, clicking a name in the status bar works too. From agtc, `enter` on a session does the same thing and also stages it.
 - Move between panes: `prefix o` cycles, `prefix` plus an arrow key goes in that direction, or click the pane. `prefix z` zooms the current pane to full size and back.
-- Change the layout: `prefix space` cycles side by side, stacked and more, `prefix {` swaps the two panes, `enter` keeps whatever you set. Resize by dragging the border, or `prefix :` and `resize-pane -L 10` (`-R`, `-U`, `-D`). tmux's own `prefix ctrl-arrow` never arrives on macOS until you untick the Mission Control shortcuts under Keyboard Shortcuts.
+- Change the layout: `prefix space space` cycles side by side, stacked and more (agtc's menu took `prefix space` and keeps tmux's `next-layout` on its `space`), `prefix {` swaps the two panes, `enter` keeps whatever you set. Resize by dragging the border, or `prefix :` and `resize-pane -L 10` (`-R`, `-U`, `-D`). tmux's own `prefix ctrl-arrow` never arrives on macOS until you untick the Mission Control shortcuts under Keyboard Shortcuts.
 - Close an agent: quit it (`/exit` in Claude Code, `ctrl-c` twice or `exit` for a shell), and its window closes with it. Nothing else is needed, agtc notices. `prefix &` kills the window with everything in it after a confirmation, `prefix x` kills just the pane; both end the agent, so prefer quitting it.
 - Leave: `prefix d` detaches, agents keep running, `agtc tmux` brings the session back. Closing the terminal window does the same.
 - Scroll: `prefix [` enters copy mode, arrows or page up/down move, `q` leaves. With `mouse on`, the wheel does it directly.
 
 Sessions in Terminal.app tabs keep working as before; agtc uses whichever the session runs in. Agents survive closing the terminal that shows the hub, `agtc tmux` attaches again.
+
+## Keys from the agent's pane
+
+`prefix space`, or `option-space` where the terminal sends option as meta, opens a tmux menu over the pane you are typing in. Its title is the session's name; under it the tool, the start of the session id, the status, the branch and the checkout. Then one key per action, the same letters as in the hub:
+
+| Key | Does | Where you end up |
+| --- | --- | --- |
+| `V` | starts a reviewer beside the agent; on a reviewer's pane it pastes the report into the reviewed agent | agtc's pane, which asks for the spec and the tool |
+| `X` | closes the agent and its window; `x` on a reviewer's pane closes the reviewer | agtc's pane, which asks y/N |
+| `n`, `N` | another agent, a new worktree with an agent | agtc's pane, which asks where |
+| `v` | lazygit over the checkout in a popup | where you were |
+| `e`, `o` | the checkout in the agtc VS Code window, in the editor | where you were |
+| `J`, `K` | the running agent above, below | on that agent |
+| `m`, `c` | mark seen, copy the resume command | where you were |
+| `a` | back to agtc | agtc's pane |
+| `space` | tmux's `next-layout`, which `prefix space` was before | where you were |
+
+`esc` or `q` closes the menu. A pane without an agent gets `e`, `o`, `a` and `space` for the directory it is in.
+
+Holding option alone cannot open it: a terminal sends nothing for a modifier until a key comes with it. The key types an escape sequence naming your pane into agtc, which holds the sessions and opens the menu at once. Every action but `e` and `o` reaches agtc the same way, so agtc selects that row and does what the key does there.
 
 ## VS Code
 
@@ -209,12 +230,12 @@ agtc code            # open the window on this directory's checkout
 agtc tmux            # in that window's terminal: the hub
 ```
 
-- `prefix e` or `option-e` in any pane of the hub's session: the window shows the checkout of the agent in that pane, and a Claude agent waiting at its prompt gets `/ide` typed and confirmed, so it is linked to the window. In the hub, `e` does the same for the selected row. `o` and `option-o` stay the editor from `AGTC_EDITOR`, Zed by default.
+- `prefix space`, then `e`, in any pane of the hub's session: the window shows the checkout of the agent in that pane, and a Claude agent waiting at its prompt gets `/ide` typed and confirmed, so it is linked to the window. In the hub, `e` does the same for the selected row. `o` stays the editor from `AGTC_EDITOR`, Zed by default.
 - The rows whose checkout the window shows carry a ` vscode ` tag.
 - A busy agent, or one with text in its input, is left alone: the window switches, `/ide` is yours to type.
 - Codex has no editor link; the window still switches.
 
-The window opens `~/.cache/agtc/vscode/agtc.code-workspace`: an empty folder named `agtc` first, the checkout second. agtc rewrites the second entry and VS Code follows within a second. The first folder never changes, because VS Code restarts its extensions when it does, and that drops every Claude Code link. Trust the workspace once when VS Code asks; Claude Code's extension does not run in an untrusted one. `prefix e` works as is. `option-e` needs the terminal to send option as meta: `"terminal.integrated.macOptionIsMeta": true`.
+The window opens `~/.cache/agtc/vscode/agtc.code-workspace`: an empty folder named `agtc` first, the checkout second. agtc rewrites the second entry and VS Code follows within a second. The first folder never changes, because VS Code restarts its extensions when it does, and that drops every Claude Code link. Trust the workspace once when VS Code asks; Claude Code's extension does not run in an untrusted one. `prefix space` works as is. `option-space` needs the terminal to send option as meta: `"terminal.integrated.macOptionIsMeta": true`.
 
 ## Agents inside Zed
 
@@ -282,7 +303,7 @@ agtc is read-only and offline. The full footprint:
 - **Reads** `~/.claude/sessions/*.json`, `~/.claude/history.jsonl`, the last 256 KB of `~/.claude/projects/*/<session>.jsonl` for live sessions, their `<session>/subagents/agent-*.meta.json` and the tail of `agent-*.jsonl`, `~/.codex/state_*.sqlite` (opened read-only) and Codex rollout `.jsonl` logs.
 - **Writes** `~/.cache/agtc/state.json` (session ids and timestamps of when you looked at them, the session last opened per checkout, the agent windows tmux held, for `S`, and which reviewer reviews which session) and, on `V`, the reviewer's prompt under `~/.cache/agtc/prompts/`. Specs under `~/.cache/agtc/specs/` are written by the agent you asked, agtc only creates the directory and reads them. Inside tmux it also sets a `@agtc_window` pane option on panes it moves.
 - **Spawns** while polling: `ps`, `lsof`, `git` (`rev-parse`, `worktree list`, `status`, `diff`, `rev-list`, `symbolic-ref`), `osascript` and `tmux list-*`, always as argv arrays, never through a shell. The tty passed to AppleScript is validated against `ttys<digits>` first. When a poll finds a session that just turned done or needs input while its terminal is off screen, `osascript -e 'display notification …'` shows a banner with the session's title and status (`--no-notify` stops that).
-- **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `prefix e`, `option-e`, `option-o`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's.
+- **Spawns once at start inside tmux**: `tmux set-option mouse on` and `tmux set-environment CLAUDE_CODE_TMUX_TRUECOLOR=1` for its own session, and `tmux bind-key` for `prefix a`, `option-a`, `prefix space`, `option-space`, `option-j`, `option-k` and `option-1` to `option-9`, after `tmux list-keys` showed them free or already agtc's. `prefix space` is the one stock tmux key it takes.
 - **Spawns on a key press only**: `pbcopy` (`c`), `tmux` pane commands (`enter`, `n`, `N`), the editor from `AGTC_EDITOR` (`o`), for `v` a tmux popup that runs `lazygit` or `git diff HEAD` in the checkout, and for `N` `git fetch` of the base branch plus `git worktree add` in the main checkout. `n` and `N` type the bare command `claude` or `codex` into a fresh shell in the checkout, nothing else; `R` and `S` type `claude --resume <id>` or `codex resume <id>` the same way, with the read-only flags below added back for a reviewer. `V` types `claude "$(cat <prompt file>)" --session-id <uuid> --disallowedTools 'Edit,Write,NotebookEdit,Read(~/.claude/**),Read(~/.codex/**)' --allowedTools 'Read,Grep,Glob,Bash(git diff:*),…'` or `codex --sandbox read-only --ask-for-approval never "$(cat <prompt file>)"`. `agtc send` and `V` on a reviewer paste text into an agent's input without pressing enter (`V` reads the reviewer's last message from its transcript or rollout log first, and copies it with `pbcopy` when the pane is out of reach); `agtc attach` creates a grouped tmux session. `x` runs `tmux kill-pane` on a reviewer's pane, and only after its report was handed over or dropped; `X` runs it on every pane of an agent's window but agtc's own, after a `y`. These are the only processes agtc ends. The only things agtc deletes are worktrees and branches, and only through `agtc worktrees prune` after a `y`, `agtc worktrees rm`, or `X` after its second `y`: `git worktree remove` (with `--force` only when you passed it), then `git branch -d` for a never-used branch and `git branch -D` for one whose remote branch is gone, `git worktree prune` for a directory that is already gone. Nothing runs in a worktree an agent is active in.
 - **Network**: none. `bun run check:offline` fails CI if anything under `src/` references fetch, http, sockets or Bun's server APIs. The one thing that reaches the registry is `agtc update`, and it does so by running `bun add -g` (or `npm install -g`), never from agtc's own code.
 - **Dependencies**: zero at runtime. `bun-types` for development only. No install scripts.

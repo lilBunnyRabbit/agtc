@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Key, isPrintable, parseMouse, splitKeys } from "../src/tui/keys";
+import { Key, isPrintable, paneKey, parseMouse, parsePaneKey, splitKeys } from "../src/tui/keys";
 
 describe("splitKeys", () => {
   test("plain characters split one by one", () => {
@@ -52,5 +52,18 @@ describe("isPrintable", () => {
     expect(isPrintable(" ")).toBe(true);
     expect(isPrintable("\x03")).toBe(false);
     expect(isPrintable(Key.up)).toBe(false);
+  });
+});
+
+describe("paneKey", () => {
+  test("survives the trip through splitKeys", () => {
+    const typed = paneKey({ paneId: "%12", key: "V" });
+    expect(splitKeys(`${typed}q`)).toEqual([typed, "q"]);
+    expect(parsePaneKey(typed)).toEqual({ paneId: "%12", key: "V" });
+  });
+
+  test("a key or a mouse report is not one", () => {
+    expect(parsePaneKey("V")).toBeUndefined();
+    expect(parsePaneKey("\x1b[<0;10;5M")).toBeUndefined();
   });
 });

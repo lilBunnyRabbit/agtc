@@ -1,4 +1,5 @@
 import type { Options } from "../../cli";
+import { showMenu } from "../../commands/menu";
 import { notify } from "../../desktop/notify";
 import { shownCheckout } from "../../desktop/vscode";
 import { copyToClipboard } from "../../lib/shell";
@@ -10,7 +11,7 @@ import type { StateStore } from "../../model/state-store";
 import { OWN_PANE } from "../../tmux/env";
 import { setupTmux } from "../../tmux/setup";
 import { ANSI } from "../ansi";
-import { Key, type Mouse, parseMouse } from "../keys";
+import { Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
 import { terminalSize } from "../layout";
 import { type Frame, type UiState, initialUiState, renderFrame } from "../render";
 import { openScreen } from "../terminal";
@@ -173,6 +174,8 @@ export class App implements AppContext {
   private handleKey(key: string): void {
     const mouse = parseMouse(key);
     if (mouse) return this.handleMouse(mouse);
+    const fromPane = parsePaneKey(key);
+    if (fromPane) return this.handlePaneKey(fromPane);
     if (key === Key.ctrlC) process.exit(0);
     if (this.ui.prompt) this.handlePromptKey(key);
     else if (this.ui.searchMode) {
@@ -180,6 +183,17 @@ export class App implements AppContext {
       this.clampSelection();
       this.draw();
     } else this.handleListKey(key);
+  }
+
+  private handlePaneKey({ paneId, key }: PaneKey): void {
+    if (this.ui.prompt) return;
+    const session = this.sessions.find((s) => s.status !== "inactive" && s.tmux?.paneId === paneId);
+    if (key === MENU_KEY) return void (OWN_PANE && showMenu(session, paneId, OWN_PANE));
+    if (!session) return this.say(`no agent in pane ${paneId}`);
+    this.ui.searchMode = false;
+    if (!this.visible.includes(session)) this.ui.query = "";
+    this.select(session);
+    this.handleListKey(key);
   }
 
   /** A prompt keeps the mouse out. */

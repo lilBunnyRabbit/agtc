@@ -1,4 +1,4 @@
-import { run, succeeds } from "../lib/shell";
+import { run, shellQuote, succeeds } from "../lib/shell";
 
 export let OWN_PANE = process.env.TMUX_PANE;
 
@@ -27,6 +27,9 @@ export function tmuxFreeEnv(): Record<string, string | undefined> {
   const { TMUX, TMUX_PANE, ...env } = process.env;
   return env;
 }
+
+/** This agtc as a shell command, for tmux to run from a key. */
+export const agtcShell = () => [process.execPath, process.argv[1]].map(shellQuote).join(" ");
 
 export const tmux = (...args: string[]) => run(["tmux", ...args]);
 
