@@ -4,6 +4,7 @@ import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../model/search";
 import { type Session, type Status, STATUSES, type Tool, type Verdict, workDir } from "../model/session";
+import { ACTIONS, type KeyAction, appliesTo, rowOf, shownKey } from "./actions";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import {
   AGE_WIDTH,
@@ -321,56 +322,15 @@ function renderFooter(ui: UiState, selected: Session | undefined, layout: Layout
   return lines;
 }
 
+const hintOf = (ui: UiState) => (action: KeyAction) => `${shownKey(action)} ${action.state?.(ui) ?? action.label}`;
+
 /** What the selected row can do right now: focus or resume, mark seen only while it is "done". */
 function rowKeys(ui: UiState, session: Session | undefined): string[] {
-  const search = `/ search${ui.query ? " (esc clears)" : ""}`;
-  if (!session) return [search, "? keys"];
-  const live = session.status !== "inactive";
-  return [
-    search,
-    live ? `enter ${ui.enterHint}` : "R resume in tmux",
-    ...(session.status === "done" ? ["m seen"] : []),
-    ...(live ? [] : ["c copy resume"]),
-    "o editor",
-    "e vscode",
-    "v diff",
-    session.reviewOf ? "V report" : "V review agent",
-    ...(session.reviewOf && live ? ["x close"] : []),
-    ...(!session.reviewOf && live && session.tmux ? ["X close"] : []),
-    "n new agent",
-    "N worktree",
-    "? keys",
-  ];
+  const hints = ACTIONS.filter((action) => action.hint);
+  return (session ? hints.filter(appliesTo(rowOf(session))) : hints.filter((action) => action.section === "list" || action.section === "look")).map(hintOf(ui));
 }
 
-function allKeys(ui: UiState): string[] {
-  return [
-    "j/k move up/down",
-    "J/K stage up/down",
-    "1-9 stage that row",
-    "g/G top/bottom",
-    `/ search${ui.query ? " (esc clears)" : ""}`,
-    `enter ${ui.enterHint}`,
-    "o editor",
-    "e vscode",
-    "v diff",
-    "V review agent / report",
-    "x close reviewer",
-    "X close agent",
-    "n new agent",
-    "N new worktree",
-    "R resume in tmux",
-    "S restore hub",
-    "m seen",
-    "M all seen",
-    "c copy resume",
-    "r refresh",
-    `a inactive:${onOff(ui.showInactive)}`,
-    `d detail:${onOff(ui.showDetail)}`,
-    "q quit",
-    "? less",
-  ];
-}
+const allKeys = (ui: UiState) => ACTIONS.map(hintOf(ui));
 
 /** Greedy line fill: items joined by `gap`, a new line when the next item would not fit. */
 function wrapItems(items: string[], gap: string, width: number): string[] {
@@ -388,5 +348,3 @@ function wrapItems(items: string[], gap: string, width: number): string[] {
   if (current) lines.push(current);
   return lines;
 }
-
-const onOff = (flag: boolean) => (flag ? "on" : "off");

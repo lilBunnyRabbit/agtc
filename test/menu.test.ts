@@ -15,8 +15,8 @@ const typedKey = (command: string[]) => parsePaneKey(command.slice(command.index
 
 describe("tmuxCommands", () => {
   test("a key is typed into agtc and you stay in the pane", () => {
-    expect(commandsOf("m").map((command) => command[0])).toEqual(["send-keys"]);
-    expect(typedKey(commandsOf("m")[0])).toEqual({ paneId: "%7", key: "m" });
+    expect(commandsOf("c").map((command) => command[0])).toEqual(["send-keys"]);
+    expect(typedKey(commandsOf("c")[0])).toEqual({ paneId: "%7", key: "c" });
   });
 
   test("what opens a popup waits for the menu to close, a question too", () => {

@@ -4,6 +4,7 @@ import pkg from "../../package.json";
 import { padRight } from "../lib/text";
 import { HELP_FILE } from "../paths";
 import { STATUSES, type Status } from "../model/session";
+import { ACTIONS, type Section, shownKey } from "./actions";
 import { ANSI, stripAnsi, style, visibleLength } from "./ansi";
 import { ICON, STATUS_LABEL, needsAttention, statusStyle, toolIcon, worktreeIcon } from "./theme";
 
@@ -23,6 +24,15 @@ function badge(status: Status): string {
   return needsAttention(status) ? style(` ${label} `, ...statusStyle(status), ANSI.reverse) : style(label, ...statusStyle(status));
 }
 
+const agentRow = { status: "idle", reviewer: false, inTmux: true } as const;
+
+/** A key that only a reviewer's row has is shown as such. */
+const keysOf = (section: Section) =>
+  ACTIONS.filter((action) => action.section === section).map((action) => {
+    const onReviewer = action.applies && !action.applies(agentRow) && action.applies({ ...agentRow, reviewer: true });
+    return key(onReviewer ? onReview(shownKey(action)) : shownKey(action), action.help, action.also);
+  });
+
 const STATUS_MEANING: Record<Status, string> = {
   "needs input": "blocked on a permission or dialog",
   done: "turn finished after your last prompt, output not looked at yet",
@@ -37,42 +47,25 @@ export function helpText(): string {
     `${style("agtc", ANSI.bold)} ${style(pkg.version, ANSI.dim)}   ${style("keys", ANSI.bold)}${style("   q or ctrl-c closes this, ↑↓ scroll", ANSI.dim)}`,
     "",
     heading("Move between agents"),
-    key("J / K", "the running session above / below, selected and staged", "option-j / option-k from any pane"),
-    key("1 … 9", "the session with that digit, staged; only one that is done or needs input has a digit", "option-1 … option-9 from any pane"),
-    key("enter", "stage the selected session (with --jump zed: open its checkout in the editor)"),
+    ...keysOf("jump"),
     key("option-a, prefix a", "back to agtc from any pane"),
     "",
     heading("From the agent's own pane"),
     key("prefix space", "a popup over the pane: which session it is, its checkout, and the keys below", "option-space too"),
     note("V X n ask in a popup over the pane. A digit takes you to the agent listed under it, one that waits for you. esc or q closes it."),
-    key("j / k  ↑ ↓", "move the selection up / down only, inactive rows included"),
-    key("g / G", "top / bottom"),
-    key("/", "search every prompt ever typed, plus worktree, branch, path, tool, status", "esc clears"),
+    "",
+    heading("Move in the list"),
+    ...keysOf("list"),
     "",
     heading("Look"),
-    key("d", "detail pane on / off"),
-    key("a", "inactive sessions on / off"),
-    key("m / M", "mark the selected / every session as seen"),
-    key("r", "refresh now"),
-    key("?", "this reference"),
-    key("q", "quit agtc, agents keep running"),
+    ...keysOf("look"),
     "",
     heading("Act on the selected session"),
-    key("o", "open its checkout in the editor at the last changed file", "AGTC_EDITOR, default zed"),
-    key("e", "show its checkout in the agtc VS Code window and link the agent with /ide", "from the agent's own pane: prefix space, then e"),
-    key("v", "lazygit over its checkout in a popup", "git diff HEAD without lazygit"),
-    key("n", "another agent of the same kind; asks where, tab walks the checkouts", "option-n from any pane, which asks in a popup there"),
-    key("N", "a new worktree of its repository, then an agent in it; asks for the branch"),
-    key("R", "resume an inactive session in a tmux window", "a reviewer comes back read-only"),
-    key("S", "restore every agent window of the last hub", "reviewers read-only"),
-    key("c", "copy its resume command"),
-    key("X", "close it: the agent and its tmux window, reviewers beside it included", "asks y/N first, then whether its worktree goes too when that is clean; R brings it back"),
+    ...keysOf("act"),
     "",
     heading("Review loop"),
-    key("V", "start a read-only reviewer in a pane beside the session's. Spec: tab walks the spec it wrote, ask <tool> for a spec, first / last prompt; or type text or @file. Then the reviewing tool"),
-    key(onReview("V"), "paste the reviewer's report into the reviewed session's input, unsent; read it there, then enter"),
+    ...keysOf("review"),
     key(onReview("enter"), "see what it says, answer its questions"),
-    key(onReview("x"), "close it", "refused while its report is unread: V or m first"),
     note(`One round: V, ask for a spec, enter in the agent, V again, pick the tool, wait, V on ${ICON.child} review, enter in the agent. Then v to commit, and tell the agent to push.`),
     "",
     heading("Rows"),

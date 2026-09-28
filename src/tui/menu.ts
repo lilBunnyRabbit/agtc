@@ -1,5 +1,6 @@
 import { truncate } from "../lib/text";
 import type { Status, Tool } from "../model/session";
+import { ACTIONS, appliesTo } from "./actions";
 import { ANSI, style, visibleLength } from "./ansi";
 import { Key } from "./keys";
 import { ICON, STATUS_LABEL, statusStyle } from "./theme";
@@ -45,32 +46,28 @@ interface Group {
   actions: Action[];
 }
 
-const hub = (key: string, label: string, extra: Partial<Action> = {}): Action => ({ key, label, does: "hub", ...extra });
+/** Keys agtc has a command for, so they work in a pane it knows no agent of. */
+const OWN_COMMAND: Record<string, string> = { e: "code", o: "edit" };
 
-/** Letters are the hub's own, so one set serves both. */
-function columns({ kind }: MenuInfo): [Group[], Group[]] {
-  const open: Group = {
-    name: "open",
-    actions: [
-      { key: "e", label: "vscode", does: "own", command: "code" },
-      { key: "o", label: "editor", does: "own", command: "edit" },
-      ...(kind === "none" ? [] : [hub("v", "diff", { opensPopup: true })]),
-    ],
-  };
+/** The hub's keys by their letters, as far as they apply to the pane's agent. */
+function hubKeys({ kind, status = "idle" }: MenuInfo, keys: string[]): Action[] {
+  const applies = appliesTo({ status, reviewer: kind === "reviewer", inTmux: true });
+  return keys.flatMap((key) =>
+    ACTIONS.filter((action) => action.key === key && (OWN_COMMAND[key] || (kind !== "none" && applies(action)))).map(
+      ({ label, opensPopup }): Action => (OWN_COMMAND[key] ? { key, label, does: "own", command: OWN_COMMAND[key] } : { key, label, does: "hub", opensPopup }),
+    ),
+  );
+}
+
+function columns(info: MenuInfo): [Group[], Group[]] {
+  const open: Group = { name: "open", actions: hubKeys(info, ["e", "o", "v"]) };
   const move: Group = {
     name: "move",
-    actions: [
-      ...(kind === "none" ? [] : [hub("J", "agent above"), hub("K", "agent below")]),
-      { key: "a", label: "back to agtc", does: "back" },
-      { key: " ", label: "flip layout", does: "layout" },
-    ],
+    actions: [...hubKeys(info, ["J", "K"]), { key: "a", label: "back to agtc", does: "back" }, { key: " ", label: "flip layout", does: "layout" }],
   };
-  if (kind === "none") return [[open], [move]];
-  const agent: Group =
-    kind === "reviewer"
-      ? { name: "reviewer", actions: [hub("V", "paste report"), hub("x", "close"), hub("m", "mark seen"), hub("c", "copy resume")] }
-      : { name: "agent", actions: [hub("V", "review", { opensPopup: true }), hub("X", "close", { opensPopup: true }), hub("m", "mark seen"), hub("c", "copy resume")] };
-  const fresh: Group = { name: "new", actions: [hub("n", "agent", { opensPopup: true })] };
+  if (info.kind === "none") return [[open], [move]];
+  const agent: Group = { name: info.kind, actions: hubKeys(info, ["V", "x", "X", "m", "c"]) };
+  const fresh: Group = { name: "new", actions: hubKeys(info, ["n"]) };
   return [
     [agent, fresh],
     [open, move],
