@@ -4,7 +4,7 @@ import pkg from "../../package.json";
 import { readJson } from "../lib/files";
 
 const PACKAGE_NAME = pkg.name;
-const PACKAGE_ROOT = resolve(import.meta.dir, "..");
+export const PACKAGE_ROOT = resolve(import.meta.dir, "..", "..");
 
 export type InstallKind = "checkout" | "bun-global" | "bunx" | "npm-global";
 
