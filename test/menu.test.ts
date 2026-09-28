@@ -60,12 +60,12 @@ describe("moveSelection", () => {
   test("the first arrow picks the top left, then a column is walked and wraps", () => {
     expect(walk(Key.down)).toBe("V");
     expect(walk(Key.down, Key.down)).toBe("X");
-    expect(walk(Key.down, Key.up)).toBe("N");
+    expect(walk(Key.down, Key.up)).toBe("n");
   });
 
   test("left and right cross at the same height, or the last row there", () => {
     expect(walk(Key.down, Key.down, Key.right)).toBe("o");
-    expect(walk(Key.down, Key.right, Key.up, Key.left)).toBe("N");
+    expect(walk(Key.down, Key.right, Key.up, Key.left)).toBe("n");
   });
 
   test("the selected row is marked", () => {

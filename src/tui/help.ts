@@ -61,7 +61,7 @@ export function helpText(): string {
     key("o", "open its checkout in the editor at the last changed file", "AGTC_EDITOR, default zed"),
     key("e", "show its checkout in the agtc VS Code window and link the agent with /ide", "from the agent's own pane: prefix space, then e"),
     key("v", "lazygit over its checkout in a popup", "git diff HEAD without lazygit"),
-    key("n", "another agent of the same kind; asks where, tab walks the checkouts"),
+    key("n", "another agent of the same kind; asks where, tab walks the checkouts", "option-n from any pane"),
     key("N", "a new worktree of its repository, then an agent in it; asks for the branch"),
     key("R", "resume an inactive session in a tmux window", "a reviewer comes back read-only"),
     key("S", "restore every agent window of the last hub", "reviewers read-only"),

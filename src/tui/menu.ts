@@ -62,7 +62,7 @@ function columns({ kind }: MenuInfo): [Group[], Group[]] {
     kind === "reviewer"
       ? { name: "reviewer", actions: [hub("V", "paste report"), hub("x", "close"), hub("m", "mark seen"), hub("c", "copy resume")] }
       : { name: "agent", actions: [hub("V", "review", { asks: true }), hub("X", "close", { asks: true }), hub("m", "mark seen"), hub("c", "copy resume")] };
-  const fresh: Group = { name: "new", actions: [hub("n", "agent", { asks: true }), hub("N", "worktree", { asks: true })] };
+  const fresh: Group = { name: "new", actions: [hub("n", "agent", { asks: true })] };
   return [
     [agent, fresh],
     [open, move],

@@ -24,6 +24,8 @@ const MENU_KEYS: [table: string, key: string][] = [
   ["prefix", "Space"],
   ["root", "M-Space"],
 ];
+/** Keys that ask something: the key goes to agtc for the pane's row, and so do you, for the answer. */
+const ASK_KEYS: [key: string, agtcKey: string][] = [["M-n", "n"]];
 /** tmux's own binding of prefix space; the menu keeps it one more space away. */
 const STOCK_BINDING = "next-layout";
 
@@ -42,10 +44,12 @@ export async function setupTmux(ownPane: string): Promise<void> {
   await succeeds(["tmux", "set-environment", "-t", ownPane, "CLAUDE_CODE_TMUX_TRUECOLOR", "1"]);
   const back = backToHub(ownPane);
   // Through run-shell: send-keys leaves formats in its keys alone. agtc holds the sessions, so it opens the menu.
-  const typed = paneKey({ paneId: "%#{s/%//:pane_id}", key: MENU_KEY }).replace("\x1b", "\\e");
-  const menu = `run-shell -b "tmux send-keys -t ${ownPane} -l '${typed}'"`;
+  const typed = (key: string) => `run-shell -b "tmux send-keys -t ${ownPane} -l '${paneKey({ paneId: "%#{s/%//:pane_id}", key }).replace("\x1b", "\\e")}'"`;
+  const menu = typed(MENU_KEY);
   const bindings: [table: string, key: string, command: string][] = [
     ...MENU_KEYS.map(([table, key]): [string, string, string] => [table, key, menu]),
+    // The key first: its format names the pane the command runs in, which the move to agtc changes.
+    ...ASK_KEYS.map(([key, agtcKey]): [string, string, string] => ["root", key, `${typed(agtcKey)} ; ${back}`]),
     ...BACK_KEYS.map(([table, key]): [string, string, string] => [table, key, back]),
     ...JUMP_KEYS.map(([key, agtcKey]): [string, string, string] => ["root", key, `select-window -t ${ownPane} ; send-keys -t ${ownPane} ${agtcKey}`]),
   ];
