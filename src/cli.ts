@@ -6,6 +6,8 @@ export interface Options {
   days: number;
   intervalMs: number;
   showInactive: boolean;
+  /** One line a row from the start; `s` flips it. */
+  compact: boolean;
   bell: boolean;
   /** macOS banner when a session turns done or needs input off screen. Default on. */
   notify: boolean;
@@ -69,6 +71,7 @@ Options
   --base BRANCH        branch N starts worktrees from (default origin's default branch)
   --jump tmux|zed      enter pulls the agent next to agtc (tmux) or opens its checkout in the editor (zed)
   --inactive           start with inactive sessions shown
+  --compact            start with one line a row; s flips it (AGTC_COMPACT=1 does the same)
   --bell               ring the terminal bell too when a session finishes or needs input unseen
   --no-notify          no macOS notification when a session finishes or needs input off screen
   --force              worktrees rm: remove despite uncommitted or unpushed work
@@ -145,6 +148,7 @@ export function parseArgs(argv: string[]): Options {
     days: numberAfter("--days", DEFAULT_DAYS),
     intervalMs: numberAfter("--interval", DEFAULT_INTERVAL_MS),
     showInactive: has("--inactive"),
+    compact: has("--compact") || process.env.AGTC_COMPACT === "1",
     bell: has("--bell"),
     notify: !has("--no-notify") && process.env.AGTC_NOTIFY !== "0",
     stagePercent: Math.min(95, numberAfter("--stage", DEFAULT_STAGE_PERCENT)),

@@ -120,6 +120,7 @@ export const ACTIONS: KeyAction[] = [
   { key: "r", label: "refresh", section: "look", help: "refresh now" },
   { key: "a", label: "inactive", state: (ui) => `inactive:${onOff(ui.showInactive)}`, section: "look", help: "inactive sessions on / off" },
   { key: "d", label: "detail", state: (ui) => `detail:${onOff(ui.showDetail)}`, section: "look", help: "detail pane on / off" },
+  { key: "s", label: "rows", state: (ui) => `rows:${ui.roomy ? "roomy" : "compact"}`, section: "look", help: "roomy rows, two lines each, a block of colour when busy, done or waiting, or compact ones" },
   { key: "q", label: "quit", section: "look", help: "quit agtc, agents keep running" },
   { key: "?", label: "keys", state: (ui) => (ui.showKeys ? "less" : "keys"), section: "look", hint: true, help: "this reference" },
 ];

@@ -49,7 +49,7 @@ export class App implements AppContext {
     readonly options: Options,
     readonly state: StateStore,
   ) {
-    this.ui = initialUiState(options.showInactive, options.jump === "zed" ? "open in editor" : "focus");
+    this.ui = initialUiState(options.showInactive, options.jump === "zed" ? "open in editor" : "focus", !options.compact);
   }
 
   start(): void {
@@ -269,6 +269,9 @@ export class App implements AppContext {
         break;
       case "d":
         this.ui.showDetail = !this.ui.showDetail;
+        break;
+      case "s":
+        this.ui.roomy = !this.ui.roomy;
         break;
       case "?":
         if (OWN_PANE) return showHelp(this);

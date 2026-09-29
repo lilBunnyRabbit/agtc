@@ -11,6 +11,8 @@ export const ICON = {
   subagent: "◇",
   child: "╰",
   selection: "▌",
+  edge: { top: "╷", middle: "│", bottom: "╵" },
+  selectionEdge: { top: "▖", middle: "▌", bottom: "▘" },
   rule: "─",
 } as const;
 

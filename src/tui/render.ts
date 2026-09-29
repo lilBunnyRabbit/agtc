@@ -5,7 +5,7 @@ import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../model/search";
 import { type Session, type Status, STATUSES, type Tool, type Verdict, workDir } from "../model/session";
 import { ACTIONS, type KeyAction, appliesTo, rowOf, shownKey } from "./actions";
-import { ANSI, clip, style, visibleLength } from "./ansi";
+import { ANSI, clip, stripAnsi, style, visibleLength } from "./ansi";
 import {
   AGE_WIDTH,
   BLANK_CELLS,
@@ -14,6 +14,7 @@ import {
   MIN_TITLE_WIDTH,
   type Size,
   STATUS_WIDTH,
+  SUFFIX_WIDTH,
   computeLayout,
   rowPrefix,
   rowSuffix,
@@ -33,6 +34,8 @@ export interface UiState {
   showInactive: boolean;
   showDetail: boolean;
   showKeys: boolean;
+  /** Two lines a row: more to click on, and room for where the agent works. */
+  roomy: boolean;
   query: string;
   searchMode: boolean;
   prompt?: Prompt;
@@ -42,8 +45,8 @@ export interface UiState {
   inEditor?: string;
 }
 
-export function initialUiState(showInactive: boolean, enterHint = "focus"): UiState {
-  return { enterHint, selected: 0, showInactive, showDetail: true, showKeys: false, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
+export function initialUiState(showInactive: boolean, enterHint = "focus", roomy = false): UiState {
+  return { enterHint, selected: 0, showInactive, showDetail: true, showKeys: false, roomy, query: "", searchMode: false, message: "", refreshedAt: Date.now() };
 }
 
 export interface Frame {
@@ -136,12 +139,16 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
       currentRepo = session.repo;
       if (lines.length) push("");
       push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo), layout));
+    } else if (ui.roomy) {
+      push("", session);
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    push(sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id), workDir(session) === ui.inEditor), session);
+    const row = sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id), workDir(session) === ui.inEditor, ui.roomy);
     const snippet = matchSnippet(session, ui.query);
-    if (snippet) push(snippetLine(snippet, isSelected, layout), session);
+    const found = snippet ? [snippetLine(snippet, isSelected, layout, ui.roomy ? blockBar(session, isSelected, "bottom") : undefined)] : [];
+    const block = ui.roomy ? [row, aboutLine(session, isSelected, layout, snippet ? "middle" : "bottom"), ...found].map((line) => (isQuiet(session.status) ? line : solid(line, layout, session.status, isSelected))) : [row, ...found];
+    for (const line of block) push(line, session);
   });
 
   if (!visible.length) {
@@ -155,14 +162,14 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
  */
-function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined, inEditor = false): string {
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined, inEditor = false, roomy = false): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
   const nested = !!session.reviewOf;
   const underSubject = nested && !!above && (above.id === session.reviewOf || above.reviewOf === session.reviewOf);
   const branch = nested ? `${style(ICON.child, inactive ? ANSI.dim : ANSI.cyan)} ` : "";
   const prefix = rowPrefix({
-    bar: selectionBar(isSelected),
+    bar: roomy ? blockBar(session, isSelected, "top") : selectionBar(isSelected),
     jump: digit ? style(digit, isSelected ? ANSI.cyan : ANSI.dim) : " ",
     worktree: session.worktree && !nested ? worktreeIcon(inactive) : " ",
     tool: toolIcon(session.tool, inactive),
@@ -170,8 +177,11 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
   });
   const verdict = session.verdict ? verdictTag(session.verdict, inactive) : "";
   const editor = inEditor ? ` ${style(EDITOR_TAG, ANSI.cyan, ANSI.bold, ANSI.reverse)}` : "";
-  const room = layout.titleWidth - visibleLength(branch) - visibleLength(verdict) - visibleLength(editor);
-  const title = truncate(underSubject ? "review" : session.title, room);
+  const space = layout.titleWidth - visibleLength(branch) - visibleLength(verdict) - visibleLength(editor);
+  const name = underSubject ? "review" : session.title;
+  const about = roomy ? "" : aboutRow(session, space - name.length);
+  const room = space - visibleLength(about);
+  const title = truncate(name, room);
   const styledTitle = isSelected
     ? style(title, ANSI.bold, ANSI.white)
     : inactive
@@ -181,11 +191,78 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
         : title;
   const fill = " ".repeat(Math.max(0, room - title.length));
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + branch + styledTitle + verdict + fill + editor + rowSuffix(age);
+  return prefix + branch + styledTitle + verdict + fill + editor + about + rowSuffix(age);
 }
 
-function snippetLine(snippet: string, isSelected: boolean, layout: Layout): string {
-  const prefix = rowPrefix({ ...BLANK_CELLS, bar: selectionBar(isSelected) });
+const FACT_GAP = "  ";
+const MAX_WHERE_WIDTH = 28;
+const MIN_WHERE_WIDTH = 8;
+
+interface About {
+  where: string;
+  counts: string[];
+}
+
+/** What the agent waits for, else its checkout; then what changed there. */
+function aboutOf(session: Session): About {
+  const { changes, subagents = [] } = session;
+  const busy = subagents.filter((agent) => agent.status === "busy").length;
+  const waits = session.status === "needs input" && session.waitingFor;
+  return {
+    where: waits ? session.waitingFor! : (session.worktree ?? session.branch ?? ""),
+    counts: [
+      busy ? style(`${ICON.subagent} ${busy}`, ANSI.cyan) : "",
+      changes?.paths.length ? `${style(`+${changes.insertions}`, ANSI.green)} ${style(`−${changes.deletions}`, ANSI.magenta)}` : "",
+      changes?.ahead ? style(`${changes.ahead} ahead`, ANSI.dim) : "",
+    ].filter(Boolean),
+  };
+}
+
+const whereStyle = ({ status, waitingFor }: Session) => (status === "needs input" && waitingFor ? statusStyle(status) : [ANSI.dim]);
+
+const widthOf = (counts: string[]) => counts.reduce((sum, count) => sum + FACT_GAP.length + visibleLength(count), 0);
+
+/** Takes what the whole title leaves: the counts first, the checkout cut to the rest. */
+function aboutRow(session: Session, room: number): string {
+  const { where, counts } = aboutOf(session);
+  while (counts.length && widthOf(counts) > room) counts.shift();
+  const left = Math.min(MAX_WHERE_WIDTH, room - widthOf(counts) - FACT_GAP.length);
+  const shown = where && left >= Math.min(MIN_WHERE_WIDTH, where.length) ? [style(truncate(where, left), ...whereStyle(session))] : [];
+  return [...shown, ...counts].map((fact) => FACT_GAP + fact).join("");
+}
+
+/** Second line of a block: the checkout under the title, the counts at the right end. */
+function aboutLine(session: Session, isSelected: boolean, layout: Layout, part: EdgePart): string {
+  const indent = session.reviewOf ? "  " : "";
+  const width = layout.titleWidth + SUFFIX_WIDTH - indent.length - 1;
+  const { where, counts } = aboutOf(session);
+  while (counts.length && widthOf(counts) > width) counts.shift();
+  const right = counts.join(FACT_GAP);
+  const left = style(truncate(where || tildify(workDir(session), HOME), Math.max(0, width - widthOf(counts))), ...whereStyle(session));
+  const fill = " ".repeat(Math.max(0, width - visibleLength(left) - visibleLength(right)));
+  return rowPrefix({ ...BLANK_CELLS, bar: blockBar(session, isSelected, part) }) + indent + left + fill + right;
+}
+
+type EdgePart = keyof typeof ICON.edge;
+
+/** A terminal has no half lines of space. An edge that starts and ends mid-line leaves a gap between two rows all the same. */
+const blockBar = (session: Session, isSelected: boolean, part: EdgePart) =>
+  isSelected ? style(ICON.selectionEdge[part], ANSI.cyan) : style(ICON.edge[part], ...statusStyle(session.status));
+
+const isQuiet = (status: Status) => status === "idle" || status === "inactive";
+
+/**
+ * A row that works or waits for you, in the full colour of its status. Reverse video puts the terminal's background in the text, so no colour inside the line survives, and a bar in it would show as a notch: the selection's stays outside.
+ */
+function solid(line: string, layout: Layout, status: Status, isSelected: boolean): string {
+  const body = ` ${stripAnsi(line).slice(2)}`;
+  const fill = " ".repeat(Math.max(0, layout.columns - 2 - body.length));
+  const block = style((isSelected ? body.slice(1) : body) + fill, statusStyle(status)[0], ANSI.reverse, ...(isSelected ? [ANSI.bold] : []));
+  return ` ${isSelected ? selectionBar(true) : ""}${block}`;
+}
+
+function snippetLine(snippet: string, isSelected: boolean, layout: Layout, bar = selectionBar(isSelected)): string {
+  const prefix = rowPrefix({ ...BLANK_CELLS, bar });
   return prefix + style(`${ICON.search} ${truncate(snippet, layout.snippetWidth)}`, ANSI.yellow);
 }
 

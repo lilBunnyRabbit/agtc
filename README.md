@@ -44,6 +44,8 @@ Updating: `agtc update`, then quit agtc in the hub (`q`) and run `agtc tmux` aga
 - **done** turn finished after your last prompt and you have not looked at it yet
 - **busy** working, **idle** waiting for you, **inactive** not running (recent history)
 
+Rows are roomy: two lines each and a blank line between two of them, all of it clickable; the edge on the left starts and ends mid-line. Under the title sits what the agent waits for, else its worktree or branch, and at the right end busy subagents, uncommitted changes (`+66 −5`) and commits ahead; a thin edge on the left has the colour of the status. A block that is busy, done or needs input has the full colour of its status with dark text. An idle or inactive one has no background, only the edge. Compact rows hold the same on one line, where the title keeps its room and the branch is cut first. `s` flips to one line a row, `--compact` starts that way.
+
 Selected session gets a detail pane: working directory, worktree and branch, uncommitted changes (`3 files +120 −14   2 ahead of origin/main`, then the paths, most recently touched first), the last prompt with its age and, when the terminal is tall enough, the two before it. A Claude session that created a worktree mid-way and moved into it is tracked by where it edits files, not where it started; the other checkouts it touched are listed as well.
 
 Sessions that want you, `input` and `done`, get a filled badge and a title in the same colour, and their group line counts them, so nothing waiting hides in a long list. The order is fixed: repos alphabetically, live sessions in the order they started, finished ones below them newest first. A status change recolours a row, it never moves it, and the selection stays on the session it was on.
@@ -93,6 +95,7 @@ Children are the session's reviewers (`V`) and `◇` its subagents: agents it ru
 | `c` | copy a resume command (`claude --resume …` / `codex resume …`) |
 | `a` | show inactive sessions |
 | `d` | toggle detail pane |
+| `s` | roomy rows or compact ones |
 | `?` | the whole key reference, tmux keys and the review loop included, in a popup (`q` closes); outside tmux, the footer shows every key instead of the ones for the selected session |
 | `q` | quit |
 | mouse | click selects a row, a double click stages it like `enter`, the wheel moves the selection. Inside tmux this needs `mouse on`, which agtc sets for its session |
@@ -149,6 +152,7 @@ agtc --stage 75      width of the agent pane next to agtc inside tmux, percent (
 agtc --worktrees DIR where N creates worktrees, relative to the main checkout (default .claude/worktrees)
 agtc --base staging  branch N starts worktrees from (default origin's default branch)
 agtc --inactive      start with inactive sessions shown
+agtc --compact       start with one line a row (AGTC_COMPACT=1 does the same)
 agtc --bell          ring the terminal bell too when a session finishes or needs input while you are elsewhere
 agtc --no-notify     no macOS notification when a session finishes or needs input off screen
 agtc --json          print all sessions as JSON

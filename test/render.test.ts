@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { stripAnsi, visibleLength } from "../src/tui/ansi";
+import { ANSI, stripAnsi, visibleLength } from "../src/tui/ansi";
 import { renderGraph } from "../src/tui/graph";
 import { computeLayout } from "../src/tui/layout";
 import { initialUiState, renderFrame, renderHeader } from "../src/tui/render";
@@ -51,6 +51,37 @@ describe("renderFrame", () => {
     const text = renderFrame(withVerdict, ui, { columns: 120, rows: 30 }).lines.map(stripAnsi).join("\n");
     expect(text).toContain("review · not ready");
     expect(text).toContain("not ready  not ready: two bugs");
+  });
+
+  test("a row says where the agent works and what changed, the title first", () => {
+    const row = (columns: number) => renderFrame(sessions, initialUiState(false), { columns, rows: 30 }).lines.map(stripAnsi).find((line) => line.includes("Settings"));
+    expect(row(120)).toMatch(/Settings page safe padding +feat-a  \+12 −3  2 ahead  /);
+    expect(row(54)).toContain("Settings page safe padding");
+    expect(row(54)).not.toContain("feat-a");
+  });
+
+  test("a roomy row is two lines, a block of colour unless idle, a blank line apart from the row above it", () => {
+    for (const columns of [120, 60]) {
+      const frame = renderFrame(sessions, { ...initialUiState(false), roomy: true, showDetail: false, selected: 1 }, { columns, rows: 40 });
+      const text = frame.lines.map(stripAnsi);
+      const title = text.findIndex((line) => line.includes("Settings"));
+      expect(text[title - 1]).toContain(" acme ");
+      expect(text[title]).toMatch(/^   1 /);
+      expect(text[title + 1]).toMatch(/^   +feat-a +\+12 −3  2 ahead +$/);
+      expect(text[title + 2]).toBe("");
+      expect(frame.hits.slice(title, title + 3).map((row) => row[0]?.session.id)).toEqual(["s1", "s1", "s2"]);
+      expect(text[title + 6]).toContain("╰ review");
+      for (const line of frame.lines.slice(title, title + 2)) {
+        expect(visibleLength(line)).toBe(columns - 1);
+        expect(line.split(ANSI.reset)).toHaveLength(2);
+        expect(line).toContain(ANSI.reverse);
+      }
+      expect(text.find((line) => line.includes("Sidebar"))).toMatch(/^ ▌ /);
+      expect(text[title + 7]).toMatch(/^ ╵ /);
+      const idle = frame.lines.find((line) => stripAnsi(line).includes("╰ review"))!;
+      expect(idle).not.toContain(ANSI.reverse);
+      expect(stripAnsi(idle)).toMatch(/^ ╷ /);
+    }
   });
 
   test("hits map rows back to sessions", () => {
