@@ -49,6 +49,7 @@ export function helpText(): string {
     heading("Move between agents"),
     ...keysOf("jump"),
     key("option-a, prefix a", "back to agtc from any pane"),
+    key("click the status line", "an agent listed at its right end, staged", "the digits are the list's"),
     "",
     heading("From the agent's own pane"),
     key("prefix space", "a popup over the pane: which session it is, its checkout, and the keys below", "option-space too"),

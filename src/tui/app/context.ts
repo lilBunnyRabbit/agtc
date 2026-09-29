@@ -18,4 +18,6 @@ export interface AppContext {
   refreshSoon(): void;
   markSeen(session: Session): void;
   select(session: Session): void;
+  /** The hub draws its own colours, so it greys itself while a popup of its making is open. */
+  behindPopup<T>(popup: Promise<T>): Promise<T>;
 }

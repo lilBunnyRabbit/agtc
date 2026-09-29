@@ -1,6 +1,6 @@
 import type { Options } from "../../cli";
 import { askInPopup } from "../../commands/ask";
-import { otherAgents, showMenu } from "../../commands/menu";
+import { HAS_BACKDROP, otherAgents, showMenu } from "../../commands/menu";
 import { notify } from "../../desktop/notify";
 import { shownCheckout } from "../../desktop/vscode";
 import { copyToClipboard } from "../../lib/shell";
@@ -10,9 +10,10 @@ import { type Session, type Status, resumeCommand } from "../../model/session";
 import { asSeen, collectSessions } from "../../model/sessions";
 import type { StateStore } from "../../model/state-store";
 import { OWN_PANE } from "../../tmux/env";
+import { Chrome } from "../../tmux/chrome";
 import { setupTmux } from "../../tmux/setup";
-import { ANSI } from "../ansi";
-import { Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
+import { ANSI, stripAnsi } from "../ansi";
+import { ANSWER_KEY, Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
 import { terminalSize } from "../layout";
 import { jumpTargets } from "../rows";
 import { type Frame, type UiState, initialUiState, renderFrame } from "../render";
@@ -21,6 +22,7 @@ import { closeAgent, missingFromLastHub, newAgent, newWorktree, restoreLastHub, 
 import type { AppContext, Ask } from "./context";
 import { editPrompt, searchKey } from "./input";
 import { closeReviewer, reportFindings, startReviewer } from "./review";
+import { answerNext, peek } from "./peek";
 import { focus, jumpBy, jumpTo, openEditor, openVscode, reviewDiff, showHelp } from "./stage";
 
 const MESSAGE_TTL_MS = 3000;
@@ -43,6 +45,8 @@ export class App implements AppContext {
   private restoreOffered = false;
   private frame: Frame | undefined;
   private lastClick: { id: string; at: number } | undefined;
+  private chrome: Chrome | undefined;
+  private dimmed = false;
   private readonly out = process.stdout;
 
   constructor(
@@ -55,6 +59,11 @@ export class App implements AppContext {
   start(): void {
     openScreen({ mouse: true, onKey: (key) => this.handleKey(key), onResize: () => this.draw() });
     if (OWN_PANE) void setupTmux(OWN_PANE);
+    if (OWN_PANE && this.options.chrome) {
+      const chrome = new Chrome(OWN_PANE);
+      this.chrome = chrome;
+      process.on("exit", () => chrome.restore());
+    }
     this.draw();
     void this.refresh();
     setInterval(() => void this.refresh(), this.options.intervalMs);
@@ -82,7 +91,19 @@ export class App implements AppContext {
 
   draw(): void {
     this.frame = renderFrame(this.sessions, this.ui, terminalSize());
-    this.out.write(ANSI.clearScreen + this.frame.lines.join("\n"));
+    const lines = this.dimmed ? this.frame.lines.map(stripAnsi) : this.frame.lines;
+    this.out.write(ANSI.clearScreen + lines.join("\n"));
+  }
+
+  async behindPopup<T>(popup: Promise<T>): Promise<T> {
+    this.dimmed = HAS_BACKDROP;
+    this.draw();
+    try {
+      return await popup;
+    } finally {
+      this.dimmed = false;
+      this.draw();
+    }
   }
 
   say(message: string): void {
@@ -96,7 +117,7 @@ export class App implements AppContext {
   }
 
   ask(prompt: Ask, submit: (value: string) => void): void {
-    if (this.askedFrom) return void askInPopup(this.askedFrom, prompt).then((value) => value !== undefined && submit(value));
+    if (this.askedFrom) return void this.behindPopup(askInPopup(this.askedFrom, prompt)).then((value) => value !== undefined && submit(value));
     this.ui.prompt = { ...prompt, value: prompt.value ?? "" };
     this.onPromptSubmit = submit;
     this.draw();
@@ -134,6 +155,7 @@ export class App implements AppContext {
       if (index >= 0) this.ui.selected = index;
       this.clampSelection();
       this.draw();
+      if (!this.dimmed) this.chrome?.sync(this.sessions, jumpTargets(this.visible));
       this.offerRestore();
 
       if (this.polled) this.alert(this.sessions.filter((s) => wantsYou(s.status) && before.get(s.id) !== s.status));
@@ -194,7 +216,11 @@ export class App implements AppContext {
   private handlePaneKey({ paneId, key }: PaneKey): void {
     if (this.ui.prompt) return;
     const session = this.sessions.find((s) => s.status !== "inactive" && s.tmux?.paneId === paneId);
-    if (key === MENU_KEY) return void (OWN_PANE && void showMenu(session, paneId, OWN_PANE, otherAgents(jumpTargets(this.visible), session)));
+    if (key === MENU_KEY) return void (OWN_PANE && void this.behindPopup(showMenu(session, paneId, OWN_PANE, otherAgents(jumpTargets(this.visible), session))));
+    if (key === ANSWER_KEY) {
+      this.askedFrom = paneId;
+      return answerNext(this, paneId);
+    }
     if (!session) return this.say(`no agent in pane ${paneId}`);
     this.askedFrom = paneId;
     this.ui.searchMode = false;
@@ -307,6 +333,11 @@ export class App implements AppContext {
       case "X":
         if (session) session.reviewOf ? closeReviewer(this, session) : closeAgent(this, session);
         return;
+      case " ":
+        if (session) peek(this, session, this.askedFrom);
+        return;
+      case "y":
+        return answerNext(this, this.askedFrom);
       case "J":
         return jumpBy(this, -1);
       case "K":

@@ -4,6 +4,7 @@ import { askScreen } from "./commands/ask";
 import { attachAgent } from "./commands/attach";
 import { codeCommand, editCommand } from "./commands/code";
 import { menuScreen } from "./commands/menu";
+import { peekScreen } from "./commands/peek";
 import { watchGraph } from "./commands/graph";
 import { sendToAgent } from "./commands/send";
 import { selfUpdate } from "./commands/update";
@@ -63,6 +64,9 @@ switch (options.mode) {
 
   case "menu":
     process.exit(await menuScreen(process.argv[3]));
+
+  case "peek":
+    process.exit(await peekScreen(process.argv[3]));
 
   case "ask":
     process.exit(await askScreen(process.argv[3]));

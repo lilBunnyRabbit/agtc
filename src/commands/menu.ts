@@ -9,7 +9,7 @@ import { MENU_WIDTH, type Action, type MenuInfo, type Other, menuActions, moveSe
 import { openScreen } from "../tui/terminal";
 
 const ID_LENGTH = 8;
-const BORDER = "fg=cyan";
+const BORDER = "fg=cyan,bold";
 /** A popup cannot open over this one, so what opens one waits for it to close. */
 const CLOSE_MS = 200;
 
@@ -37,15 +37,45 @@ export function popupPlace(width: number, height: number): string[] {
   return ["-x", x, "-y", y];
 }
 
-/** Returns when the popup closes. The pane's border takes the popup's colour meanwhile, to tie the two together. */
-export async function popupOver(pane: string, width: number, height: number, command: string): Promise<void> {
-  const border = await tmux("show-options", "-wv", "-t", pane, ACTIVE_BORDER);
-  await succeeds(["tmux", "set-option", "-w", "-t", pane, ACTIVE_BORDER, OUTLINE]);
-  await succeeds(["tmux", "display-popup", "-E", "-t", pane, ...popupFrame(width, height), ...popupPlace(width, height), command]);
-  await succeeds(["tmux", "set-option", "-w", ...(border ? [] : ["-u"]), "-t", pane, ACTIVE_BORDER, ...(border ? [border] : [])]);
+/** tmux has no opacity. Black panes with grey text behind the popup are the backdrop; text with a colour of its own keeps it. */
+const BACKDROP = process.env.AGTC_BACKDROP ?? "fg=brightblack,bg=#000000";
+export const HAS_BACKDROP = BACKDROP !== "0";
+
+type Held = [scope: "window" | "session", option: string, value: string];
+
+const BEHIND: Held[] = HAS_BACKDROP
+  ? [
+      ["window", "window-style", BACKDROP],
+      ["window", "window-active-style", BACKDROP],
+      ["session", "status-style", BACKDROP],
+      ["session", "status-right", ""],
+    ]
+  : [];
+
+const scopeOf = ([scope]: Held) => (scope === "window" ? ["-w"] : []);
+
+/** Options of the pane's window and session hold these values while the popup is open, and what they held before once it closed. */
+export async function popupBehind(pane: string, popup: string[], options: Held[] = []): Promise<void> {
+  const held = [...BEHIND, ...options];
+  const before = await Promise.all(held.map((one) => tmux("show-options", ...scopeOf(one), "-v", "-t", pane, one[1])));
+  for (const one of held) await succeeds(["tmux", "set-option", ...scopeOf(one), "-t", pane, one[1], one[2]]);
+  try {
+    await succeeds(["tmux", "display-popup", "-E", "-t", pane, ...popup]);
+  } finally {
+    for (const [index, one] of held.entries()) {
+      const value = before[index];
+      await succeeds(["tmux", "set-option", ...scopeOf(one), ...(value ? [] : ["-u"]), "-t", pane, one[1], ...(value ? [value] : [])]);
+    }
+  }
 }
 
-export const popupFrame = (width: number, height: number) => ["-b", "rounded", "-S", BORDER, "-w", String(width), "-h", String(height)];
+/** Returns when the popup closes. The pane's border takes the popup's colour meanwhile, to tie the two together. */
+export function popupOver(pane: string, width: number, height: number, command: string): Promise<void> {
+  return popupBehind(pane, [...popupFrame(width, height), ...popupPlace(width, height), command], [["window", ACTIVE_BORDER, OUTLINE]]);
+}
+
+/** Heavy lines: a thin border in a colour the panes behind it use too is lost among their own. */
+export const popupFrame = (width: number, height: number, border = BORDER) => ["-b", "heavy", "-S", border, "-w", String(width), "-h", String(height)];
 
 export async function showMenu(session: Session | undefined, pane: string, hub: string, others: Other[]): Promise<void> {
   const dir = session ? workDir(session) : await tmux("display", "-p", "-t", pane, "#{pane_current_path}");

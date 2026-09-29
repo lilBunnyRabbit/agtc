@@ -83,6 +83,9 @@ export const paneKey = ({ paneId, key }: PaneKey) => `\x1b[>${paneId.slice(1)};$
 /** Asks for the menu of actions instead of one of them. */
 export const MENU_KEY = " ";
 
+/** Asks for the question of whichever agent waits, not for the pane's own. */
+export const ANSWER_KEY = "y";
+
 export function parsePaneKey(key: string): PaneKey | undefined {
   const match = key.match(PANE_KEY);
   return match ? { paneId: `%${match[1]}`, key: String.fromCharCode(Number(match[2])) } : undefined;
