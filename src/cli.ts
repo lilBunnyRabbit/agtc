@@ -1,4 +1,4 @@
-export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "code" | "edit" | "menu" | "ask" | "peek" | "help" | "version";
+export type Mode = "tui" | "graph" | "worktrees" | "once" | "json" | "update" | "tmux" | "attach" | "send" | "edit" | "menu" | "ask" | "home" | "changes" | "help" | "version";
 export type Jump = "tmux" | "zed";
 
 export interface Options {
@@ -8,7 +8,7 @@ export interface Options {
   showInactive: boolean;
   /** One line a row from the start; `s` flips it. */
   compact: boolean;
-  /** A header on every agent pane and the waiting agents in the status line. Default on. */
+  /** A header on every agent pane. Default on. */
   chrome: boolean;
   bell: boolean;
   /** macOS banner when a session turns done or needs input off screen. Default on. */
@@ -45,10 +45,6 @@ Usage
   agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
   agtc send [DIR] --file F --row N
                        type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
-  agtc code [DIR]      show DIR's checkout (default cwd) in the agtc VS Code window, opening the
-                       window when there is none, and link the Claude agent running there to
-                       it with /ide. --pane ID takes the agent in that tmux pane instead;
-                       prefix space, then e, does that
   agtc edit [DIR]      open DIR's checkout (default cwd) in the editor, like o in the hub.
                        --pane ID takes the agent in that tmux pane; prefix space, then o, does that
   agtc worktrees [DIR] the worktrees of DIR's repository (default cwd): what runs or last ran in
@@ -73,8 +69,8 @@ Options
   --base BRANCH        branch N starts worktrees from (default origin's default branch)
   --jump tmux|zed      enter pulls the agent next to agtc (tmux) or opens its checkout in the editor (zed)
   --inactive           start with inactive sessions shown
-  --compact            start with one line a row; s flips it (AGTC_COMPACT=1 does the same)
-  --no-chrome          inside tmux: no header on the agent panes, no agents in the status line
+  --roomy              start with two lines a row; s flips it (AGTC_ROOMY=1 does the same)
+  --no-chrome          inside tmux: no header on the agent panes
                        (AGTC_CHROME=0 does the same)
   --bell               ring the terminal bell too when a session finishes or needs input unseen
   --no-notify          no macOS notification when a session finishes or needs input off screen
@@ -88,6 +84,9 @@ Environment
   AGTC_BASE            same as --base
   AGTC_JUMP            same as --jump
   AGTC_NOTIFY          0 is the same as --no-notify
+  AGTC_HEADER_STYLE    tmux style of the header band on each pane (default bg=#1a3a45)
+  AGTC_HEADER_ACTIVE_STYLE
+                       the same for the pane you type in (default bg=#061419)
   AGTC_BACKDROP        tmux style of the panes behind a popup (default fg=brightblack,bg=#000000),
                        0 leaves them as they are
   AGTC_TMUX_SETUP      0 leaves tmux alone: no mouse, no key bindings
@@ -127,7 +126,7 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const command = argv[0]?.startsWith("-") ? undefined : argv[0];
-  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send", code: "code", edit: "edit", menu: "menu", ask: "ask", peek: "peek" };
+  const commands: Record<string, Mode> = { update: "update", tmux: "tmux", graph: "graph", worktrees: "worktrees", attach: "attach", send: "send", edit: "edit", menu: "menu", ask: "ask", home: "home", changes: "changes" };
   const mode: Mode = has("--help", "-h")
     ? "help"
     : has("--version", "-v")
@@ -154,7 +153,7 @@ export function parseArgs(argv: string[]): Options {
     days: numberAfter("--days", DEFAULT_DAYS),
     intervalMs: numberAfter("--interval", DEFAULT_INTERVAL_MS),
     showInactive: has("--inactive"),
-    compact: has("--compact") || process.env.AGTC_COMPACT === "1",
+    compact: !(has("--roomy") || process.env.AGTC_ROOMY === "1"),
     chrome: !has("--no-chrome") && process.env.AGTC_CHROME !== "0",
     bell: has("--bell"),
     notify: !has("--no-notify") && process.env.AGTC_NOTIFY !== "0",

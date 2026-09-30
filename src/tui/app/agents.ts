@@ -59,7 +59,7 @@ export function newAgent(ctx: AppContext, session: Session): void {
       ctx.say("n needs a tmux session: run `agtc tmux`");
       return;
     }
-    const choices = knownCheckouts(ctx, session).map((dir) => tildify(dir, HOME));
+    const choices = knownCheckouts(ctx, workDir(session), session.repo).map((dir) => tildify(dir, HOME));
     ctx.ask({ label: `new ${session.tool} in`, value: choices[0], choices }, (value) => {
       const dir = untildify(value.trim(), HOME);
       if (!dir) return;
@@ -72,9 +72,9 @@ export function newAgent(ctx: AppContext, session: Session): void {
   });
 }
 
-function knownCheckouts(ctx: AppContext, session: Session): string[] {
-  const dirs = new Set([workDir(session)]);
-  const sameRepoFirst = [...ctx.sessions].sort((a, b) => Number(b.repo === session.repo) - Number(a.repo === session.repo));
+export function knownCheckouts(ctx: AppContext, first: string, repo?: string): string[] {
+  const dirs = new Set([first]);
+  const sameRepoFirst = [...ctx.sessions].sort((a, b) => Number(b.repo === repo) - Number(a.repo === repo));
   for (const s of sameRepoFirst) {
     if (s.mainRoot) dirs.add(s.mainRoot);
     dirs.add(workDir(s));

@@ -2,9 +2,10 @@ import pkg from "../package.json";
 import { USAGE, parseArgs } from "./cli";
 import { askScreen } from "./commands/ask";
 import { attachAgent } from "./commands/attach";
-import { codeCommand, editCommand } from "./commands/code";
+import { editCommand } from "./commands/edit";
 import { menuScreen } from "./commands/menu";
-import { peekScreen } from "./commands/peek";
+import { changesScreen } from "./commands/changes";
+import { homeScreen } from "./commands/home";
 import { watchGraph } from "./commands/graph";
 import { sendToAgent } from "./commands/send";
 import { selfUpdate } from "./commands/update";
@@ -56,17 +57,17 @@ switch (options.mode) {
   case "send":
     process.exit(await sendToAgent({ dir: options.dir, file: options.file, row: options.row, selection: process.env.AGTC_SELECTION }));
 
-  case "code":
-    process.exit(await codeCommand({ dir: options.dir, pane: options.pane }));
-
   case "edit":
     process.exit(await editCommand({ dir: options.dir, pane: options.pane }));
 
   case "menu":
     process.exit(await menuScreen(process.argv[3]));
 
-  case "peek":
-    process.exit(await peekScreen(process.argv[3]));
+  case "changes":
+    process.exit(await changesScreen(process.argv[3]));
+
+  case "home":
+    process.exit(await homeScreen(process.argv[3]));
 
   case "ask":
     process.exit(await askScreen(process.argv[3]));

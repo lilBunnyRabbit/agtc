@@ -15,13 +15,13 @@ const typedKey = (command: string[]) => parsePaneKey(command.slice(command.index
 
 describe("tmuxCommands", () => {
   test("a key is typed into agtc and you stay in the pane", () => {
-    expect(commandsOf("c").map((command) => command[0])).toEqual(["send-keys"]);
-    expect(typedKey(commandsOf("c")[0])).toEqual({ paneId: "%7", key: "c" });
+    expect(commandsOf("x", menuInfo({ ...session, reviewOf: "other" }, "~/x", "%7", "%0")).map((command) => command[0])).toEqual(["send-keys"]);
+    expect(typedKey(commandsOf("x", menuInfo({ ...session, reviewOf: "other" }, "~/x", "%7", "%0"))[0])).toEqual({ paneId: "%7", key: "x" });
   });
 
   test("what opens a popup waits for the menu to close, a question too", () => {
     expect(commandsOf("v")).toEqual([["run-shell", "-b", "sleep 0.2; tmux send-keys -t %0 -H 1b 5b 3e 37 3b 31 31 38 7e"]]);
-    for (const key of ["V", "X", "n"]) expect(commandsOf(key)[0][2]).toStartWith("sleep 0.2; tmux send-keys -t %0 -H");
+    for (const key of ["V", "X"]) expect(commandsOf(key)[0][2]).toStartWith("sleep 0.2; tmux send-keys -t %0 -H");
   });
 
   test("a digit goes to agtc as typed there", () => {
@@ -29,7 +29,7 @@ describe("tmuxCommands", () => {
   });
 
   test("the checkout keys run agtc for the pane", () => {
-    expect(commandsOf("e")).toEqual([["run-shell", "-b", "'bun' 'agtc' code --pane %7"]]);
+    expect(commandsOf("o")).toEqual([["run-shell", "-b", "'bun' 'agtc' edit --pane %7"]]);
   });
 });
 
@@ -41,7 +41,7 @@ describe("menuActions", () => {
   });
 
   test("a pane without an agent keeps the checkout and tmux keys", () => {
-    expect(menuActions(menuInfo(undefined, "~/x", "%7", "%0")).map((action) => action.key)).toEqual(["e", "o", "a", " "]);
+    expect(menuActions(menuInfo(undefined, "~/x", "%7", "%0")).map((action) => action.key)).toEqual(["o", " "]);
   });
 
   test("no key twice", () => {
@@ -55,7 +55,7 @@ describe("renderMenu", () => {
     const lines = renderMenu(info).map(stripAnsi);
     expect(lines.join("\n")).toContain("fix #12 login");
     expect(lines.join("\n")).toContain("claude  a41f0c22  idle  feat/login");
-    expect(lines.some((line) => /^\s+V\s+review\s+e\s+vscode$/.test(line))).toBe(true);
+    expect(lines.some((line) => /^\s+V\s+review\s+o\s+editor$/.test(line))).toBe(true);
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(MENU_WIDTH);
   });
 });
@@ -79,12 +79,12 @@ describe("moveSelection", () => {
   test("the first arrow picks the top left, then a column is walked and wraps", () => {
     expect(walk(Key.down)).toBe("V");
     expect(walk(Key.down, Key.down)).toBe("X");
-    expect(walk(Key.down, Key.up)).toBe("n");
+    expect(walk(Key.down, Key.up)).toBe("X");
   });
 
   test("left and right cross at the same height, or the last row there", () => {
-    expect(walk(Key.down, Key.down, Key.right)).toBe("o");
-    expect(walk(Key.down, Key.right, Key.up, Key.left)).toBe("n");
+    expect(walk(Key.down, Key.down, Key.right)).toBe("v");
+    expect(walk(Key.down, Key.right, Key.up, Key.left)).toBe("X");
   });
 
   test("the selected row is marked", () => {

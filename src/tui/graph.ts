@@ -1,5 +1,5 @@
 import { relativeAge } from "../lib/time";
-import type { Session, Subagent } from "../model/session";
+import { type Session, type Subagent, subagentTitle } from "../model/session";
 import { ANSI, clip, style, visibleLength } from "./ansi";
 import type { Layout } from "./layout";
 import { repoRule } from "./rows";
@@ -127,7 +127,7 @@ function sessionNode(session: Session): Node {
 function subagentNode(agent: Subagent): Node {
   const busy = agent.status === "busy";
   const colour = busy ? [ANSI.yellow] : [ANSI.dim];
-  const title = agent.kind ? `${agent.kind}: ${agent.description}` : agent.description;
+  const title = subagentTitle(agent);
   return {
     lines: [`${style(ICON.subagent, ...colour)} ${busy ? title : style(title, ANSI.dim)}`, `  ${style(agent.status, ...colour)}${style(` · ${relativeAge(agent.since)}`, ANSI.dim)}`],
     colour,

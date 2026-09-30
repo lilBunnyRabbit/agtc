@@ -30,8 +30,7 @@ describe("ACTIONS", () => {
   });
 
   test("the popup offers what applies to the pane's agent", () => {
-    expect(popupKeys({})).toEqual(["V", "X", "c", "n", "e", "o", "v", "J", "K", "a", " "]);
-    expect(popupKeys({ status: "done" })).toContain("m");
-    expect(popupKeys({ reviewOf: "other" })).toEqual(["V", "x", "c", "n", "e", "o", "v", "J", "K", "a", " "]);
+    expect(popupKeys({})).toEqual(["V", "X", "o", "v", " "]);
+    expect(popupKeys({ reviewOf: "other" })).toEqual(["V", "x", "o", "v", " "]);
   });
 });

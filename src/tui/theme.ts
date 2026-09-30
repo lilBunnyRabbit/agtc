@@ -10,6 +10,7 @@ export const ICON = {
   review: "⌖",
   subagent: "◇",
   child: "╰",
+  dotted: "┄",
   selection: "▌",
   edge: { top: "╷", middle: "│", bottom: "╵" },
   selectionEdge: { top: "▖", middle: "▌", bottom: "▘" },

@@ -48,34 +48,48 @@ const BEHIND: Held[] = HAS_BACKDROP
       ["window", "window-style", BACKDROP],
       ["window", "window-active-style", BACKDROP],
       ["session", "status-style", BACKDROP],
-      ["session", "status-right", ""],
     ]
   : [];
 
 const scopeOf = ([scope]: Held) => (scope === "window" ? ["-w"] : []);
 
 /** Options of the pane's window and session hold these values while the popup is open, and what they held before once it closed. */
-export async function popupBehind(pane: string, popup: string[], options: Held[] = []): Promise<void> {
-  const held = [...BEHIND, ...options];
-  const before = await Promise.all(held.map((one) => tmux("show-options", ...scopeOf(one), "-v", "-t", pane, one[1])));
-  for (const one of held) await succeeds(["tmux", "set-option", ...scopeOf(one), "-t", pane, one[1], one[2]]);
+export async function popupBehind(pane: string, popup: string[], options: Held[] = []): Promise<boolean> {
+  // By window and session id: what the popup asked may close the pane, and an option set through a pane that is gone stays set.
+  const [window, session] = (await tmux("display", "-p", "-t", pane, "#{window_id} #{session_id}")).split(" ");
+  const held = window && session ? [...BEHIND, ...options] : [];
+  const target = (one: Held) => [...scopeOf(one), "-t", one[0] === "window" ? window : session];
+  const before = await Promise.all(held.map((one) => tmux("show-options", "-v", ...target(one), one[1])));
+  for (const one of held) await succeeds(["tmux", "set-option", ...target(one), one[1], one[2]]);
   try {
-    await succeeds(["tmux", "display-popup", "-E", "-t", pane, ...popup]);
+    return await succeeds(["tmux", "display-popup", "-E", "-t", pane, ...popup]);
   } finally {
     for (const [index, one] of held.entries()) {
       const value = before[index];
-      await succeeds(["tmux", "set-option", ...scopeOf(one), ...(value ? [] : ["-u"]), "-t", pane, one[1], ...(value ? [value] : [])]);
+      await succeeds(["tmux", "set-option", ...(value ? [] : ["-u"]), ...target(one), one[1], ...(value ? [value] : [])]);
+    }
+  }
+}
+
+/** An agtc that was killed under a popup left its session dark. The next one clears that in every window of the session. */
+export async function clearBackdrop(pane: string): Promise<void> {
+  const windows = (await tmux("list-windows", "-t", pane, "-F", "#{window_id}")).split("\n").filter(Boolean);
+  for (const [scope, option, value] of BEHIND) {
+    if (!value) continue;
+    for (const at of scope === "window" ? windows : [pane]) {
+      const flags = scope === "window" ? ["-w"] : [];
+      if ((await tmux("show-options", "-v", ...flags, "-t", at, option)) === value) await succeeds(["tmux", "set-option", "-u", ...flags, "-t", at, option]);
     }
   }
 }
 
 /** Returns when the popup closes. The pane's border takes the popup's colour meanwhile, to tie the two together. */
-export function popupOver(pane: string, width: number, height: number, command: string): Promise<void> {
-  return popupBehind(pane, [...popupFrame(width, height), ...popupPlace(width, height), command], [["window", ACTIVE_BORDER, OUTLINE]]);
+export async function popupOver(pane: string, width: number, height: number, command: string): Promise<void> {
+  await popupBehind(pane, [...popupFrame(width, height), ...popupPlace(width, height), command], [["window", ACTIVE_BORDER, OUTLINE]]);
 }
 
 /** Heavy lines: a thin border in a colour the panes behind it use too is lost among their own. */
-export const popupFrame = (width: number, height: number, border = BORDER) => ["-b", "heavy", "-S", border, "-w", String(width), "-h", String(height)];
+export const popupFrame = (width: number | string, height: number | string, border = BORDER) => ["-b", "heavy", "-S", border, "-w", String(width), "-h", String(height)];
 
 export async function showMenu(session: Session | undefined, pane: string, hub: string, others: Other[]): Promise<void> {
   const dir = session ? workDir(session) : await tmux("display", "-p", "-t", pane, "#{pane_current_path}");
@@ -85,8 +99,6 @@ export async function showMenu(session: Session | undefined, pane: string, hub: 
 }
 
 export function tmuxCommands({ pane, hub }: MenuInfo, action: Action, self: string): string[][] {
-  const toHub = [["select-window", "-t", hub], ["select-pane", "-Z", "-t", hub]];
-  if (action.does === "back") return toHub;
   if (action.does === "layout") return [["next-layout", "-t", pane]];
   if (action.does === "jump") return [["select-window", "-t", hub], ["send-keys", "-t", hub, action.key]];
   if (action.does === "own") return [["run-shell", "-b", `${self} ${action.command} --pane ${pane}`]];

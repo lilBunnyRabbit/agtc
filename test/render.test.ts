@@ -14,17 +14,6 @@ const sessions = [
 ];
 
 describe("renderFrame", () => {
-  test("tags the rows whose checkout the VS Code window shows", () => {
-    const shown = [session({ id: "e1", title: "In the editor", root: "/repo/shown" }), session({ id: "e2", title: "Elsewhere" })];
-    const rows = (inEditor?: string) =>
-      renderFrame(shown, { ...initialUiState(false), showDetail: false, inEditor }, { columns: 100, rows: 20 })
-        .lines.map(stripAnsi)
-        .filter((line) => !line.includes("e vscode"));
-    expect(rows("/repo/shown").filter((line) => line.includes(" vscode "))).toHaveLength(1);
-    expect(rows("/repo/shown").find((line) => line.includes(" vscode "))).toContain("In the editor");
-    expect(rows().some((line) => line.includes(" vscode "))).toBe(false);
-  });
-
   test("fills the terminal exactly and never overflows a line", () => {
     for (const size of [{ columns: 140, rows: 40 }, { columns: 76, rows: 24 }, { columns: 40, rows: 12 }]) {
       const frame = renderFrame(sessions, initialUiState(true), size);
@@ -53,31 +42,35 @@ describe("renderFrame", () => {
     expect(text).toContain("not ready  not ready: two bugs");
   });
 
-  test("a row says where the agent works and what changed, the title first", () => {
+  test("a row says what changed, the title first", () => {
     const row = (columns: number) => renderFrame(sessions, initialUiState(false), { columns, rows: 30 }).lines.map(stripAnsi).find((line) => line.includes("Settings"));
-    expect(row(120)).toMatch(/Settings page safe padding +feat-a  \+12 −3  2 ahead  /);
+    expect(row(120)).toMatch(/Settings page safe padding +\+12 −3  2 ahead  /);
     expect(row(54)).toContain("Settings page safe padding");
     expect(row(54)).not.toContain("feat-a");
   });
 
-  test("a roomy row is two lines, a block of colour unless idle, a blank line apart from the row above it", () => {
+  test("a roomy row is two lines, a block of colour unless idle, a blank line apart from the row or the repo above it", () => {
     for (const columns of [120, 60]) {
       const frame = renderFrame(sessions, { ...initialUiState(false), roomy: true, showDetail: false, selected: 1 }, { columns, rows: 40 });
       const text = frame.lines.map(stripAnsi);
       const title = text.findIndex((line) => line.includes("Settings"));
-      expect(text[title - 1]).toContain(" acme ");
+      expect(text[title - 1]).toBe("");
+      expect(text[title - 2]).toContain(" acme ");
       expect(text[title]).toMatch(/^   1 /);
-      expect(text[title + 1]).toMatch(/^   +feat-a +\+12 −3  2 ahead +$/);
+      expect(text[title + 1]).toMatch(/^ +\+12 −3  2 ahead +$/);
       expect(text[title + 2]).toBe("");
       expect(frame.hits.slice(title, title + 3).map((row) => row[0]?.session.id)).toEqual(["s1", "s1", "s2"]);
-      expect(text[title + 6]).toContain("╰ review");
+      expect(text[title + 3]).toMatch(/^ ▌ /);
+      expect(text[title + 5]).toMatch(/^ ▌ +╰┄ ◇ Explore: callers of Header +\S+ *$/);
+      expect(frame.lines[title + 5]).toContain(ANSI.reverse);
+      expect(frame.hits[title + 5][0].session.id).toBe("s2");
+      expect(text[title + 7]).toContain("╰ review");
       for (const line of frame.lines.slice(title, title + 2)) {
         expect(visibleLength(line)).toBe(columns - 1);
         expect(line.split(ANSI.reset)).toHaveLength(2);
         expect(line).toContain(ANSI.reverse);
       }
-      expect(text.find((line) => line.includes("Sidebar"))).toMatch(/^ ▌ /);
-      expect(text[title + 7]).toMatch(/^ ╵ /);
+      expect(text[title + 8]).toMatch(/^ ╵ /);
       const idle = frame.lines.find((line) => stripAnsi(line).includes("╰ review"))!;
       expect(idle).not.toContain(ANSI.reverse);
       expect(stripAnsi(idle)).toMatch(/^ ╷ /);
@@ -87,7 +80,7 @@ describe("renderFrame", () => {
   test("hits map rows back to sessions", () => {
     const frame = renderFrame(sessions, initialUiState(false), { columns: 120, rows: 30 });
     const hitIds = frame.hits.flatMap((row) => row.map((hit) => hit.session.id));
-    expect(hitIds).toEqual(["s1", "s2", "s3", "s4"]);
+    expect(hitIds).toEqual(["s1", "s2", "s2", "s3", "s4"]);
   });
 
   test("prompt and search footers", () => {

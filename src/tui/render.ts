@@ -1,9 +1,9 @@
 import pkg from "../../package.json";
-import { padRight, plural, tildify, truncate, wrapWords } from "../lib/text";
+import { padRight, plural, tildify, truncate } from "../lib/text";
 import { relativeAge } from "../lib/time";
 import { HOME } from "../paths";
 import { filterSessions, matchSnippet } from "../model/search";
-import { type Session, type Status, STATUSES, type Tool, type Verdict, workDir } from "../model/session";
+import { type Session, type Status, STATUSES, type Subagent, type Tool, type Verdict, subagentTitle } from "../model/session";
 import { ACTIONS, type KeyAction, appliesTo, rowOf, shownKey } from "./actions";
 import { ANSI, clip, stripAnsi, style, visibleLength } from "./ansi";
 import {
@@ -41,8 +41,6 @@ export interface UiState {
   prompt?: Prompt;
   message: string;
   refreshedAt: number;
-  /** The checkout the agtc VS Code window shows, while that window is open. */
-  inEditor?: string;
 }
 
 export function initialUiState(showInactive: boolean, enterHint = "focus", roomy = false): UiState {
@@ -55,10 +53,9 @@ export interface Frame {
   hits: Hit[][];
 }
 
-const HEADER_LINES = 2; // header + blank line
+const HEADER_LINES = 3; // blank line under the pane header band, header, blank line
 const MIN_LIST_LINES = 3;
 const MAX_EXTRA_ROOTS = 2;
-const EDITOR_TAG = " vscode ";
 
 export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame {
   const layout = computeLayout(size);
@@ -77,7 +74,7 @@ export function renderFrame(sessions: Session[], ui: UiState, size: Size): Frame
   const hits = [...Array.from({ length: HEADER_LINES }, (): Hit[] => []), ...list.hits.slice(start, start + listHeight)];
 
   // A line wider than the pane wraps and scrolls the header off the top, so every line is cut.
-  const lines = [renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
+  const lines = ["", renderHeader(sessions, visible, ui, layout), "", ...body, ...filler, ...detail, ...footer];
   return { lines: lines.map((line) => clip(line, layout.columns)), visible, hits };
 }
 
@@ -139,15 +136,20 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
       currentRepo = session.repo;
       if (lines.length) push("");
       push(repoRule(session.repo, visible.filter((s) => s.repo === currentRepo), layout));
+      if (ui.roomy) push("");
     } else if (ui.roomy) {
       push("", session);
     }
     const isSelected = index === ui.selected;
     if (isSelected) lineOfSelected = lines.length;
-    const row = sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id), workDir(session) === ui.inEditor, ui.roomy);
+    const row = sessionLine(session, isSelected, layout, visible[index - 1], digits.get(session.id), ui.roomy);
     const snippet = matchSnippet(session, ui.query);
-    const found = snippet ? [snippetLine(snippet, isSelected, layout, ui.roomy ? blockBar(session, isSelected, "bottom") : undefined)] : [];
-    const block = ui.roomy ? [row, aboutLine(session, isSelected, layout, snippet ? "middle" : "bottom"), ...found].map((line) => (isQuiet(session.status) ? line : solid(line, layout, session.status, isSelected))) : [row, ...found];
+    const under = [...workingIn(session).map((agent) => (bar?: string) => subagentLine(agent, isSelected, layout, bar)), ...(snippet ? [(bar?: string) => snippetLine(snippet, isSelected, layout, bar)] : [])];
+    const block = ui.roomy
+      ? [row, aboutLine(session, isSelected, layout, under.length ? "middle" : "bottom"), ...under.map((line, at) => line(blockBar(session, isSelected, at === under.length - 1 ? "bottom" : "middle")))].map((line) =>
+          isQuiet(session.status) ? line : solid(line, layout, session.status, isSelected),
+        )
+      : [row, ...under.map((line) => line())];
     for (const line of block) push(line, session);
   });
 
@@ -162,7 +164,7 @@ function renderList(visible: Session[], ui: UiState, layout: Layout): RenderedBo
  * A reviewer's row hangs off the row above it: no worktree icon (its subject's says it), a
  * branch glyph, and just "review" when the subject or a sibling reviewer is right above.
  */
-function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined, inEditor = false, roomy = false): string {
+function sessionLine(session: Session, isSelected: boolean, layout: Layout, above: Session | undefined, digit: string | undefined, roomy = false): string {
   const inactive = session.status === "inactive";
   const attention = needsAttention(session.status);
   const nested = !!session.reviewOf;
@@ -176,8 +178,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
     status: statusCell(session.status),
   });
   const verdict = session.verdict ? verdictTag(session.verdict, inactive) : "";
-  const editor = inEditor ? ` ${style(EDITOR_TAG, ANSI.cyan, ANSI.bold, ANSI.reverse)}` : "";
-  const space = layout.titleWidth - visibleLength(branch) - visibleLength(verdict) - visibleLength(editor);
+  const space = layout.titleWidth - visibleLength(branch) - visibleLength(verdict);
   const name = underSubject ? "review" : session.title;
   const about = roomy ? "" : aboutRow(session, space - name.length);
   const room = space - visibleLength(about);
@@ -191,7 +192,7 @@ function sessionLine(session: Session, isSelected: boolean, layout: Layout, abov
         : title;
   const fill = " ".repeat(Math.max(0, room - title.length));
   const age = style(padRight(relativeAge(session.since), AGE_WIDTH), ANSI.dim);
-  return prefix + branch + styledTitle + verdict + fill + editor + about + rowSuffix(age);
+  return prefix + branch + styledTitle + verdict + fill + about + rowSuffix(age);
 }
 
 const FACT_GAP = "  ";
@@ -205,13 +206,11 @@ interface About {
 
 /** What the agent waits for, else its checkout; then what changed there. */
 function aboutOf(session: Session): About {
-  const { changes, subagents = [] } = session;
-  const busy = subagents.filter((agent) => agent.status === "busy").length;
+  const { changes } = session;
   const waits = session.status === "needs input" && session.waitingFor;
   return {
-    where: waits ? session.waitingFor! : (session.worktree ?? session.branch ?? ""),
+    where: waits ? session.waitingFor! : "",
     counts: [
-      busy ? style(`${ICON.subagent} ${busy}`, ANSI.cyan) : "",
       changes?.paths.length ? `${style(`+${changes.insertions}`, ANSI.green)} ${style(`−${changes.deletions}`, ANSI.magenta)}` : "",
       changes?.ahead ? style(`${changes.ahead} ahead`, ANSI.dim) : "",
     ].filter(Boolean),
@@ -238,7 +237,7 @@ function aboutLine(session: Session, isSelected: boolean, layout: Layout, part: 
   const { where, counts } = aboutOf(session);
   while (counts.length && widthOf(counts) > width) counts.shift();
   const right = counts.join(FACT_GAP);
-  const left = style(truncate(where || tildify(workDir(session), HOME), Math.max(0, width - widthOf(counts))), ...whereStyle(session));
+  const left = style(truncate(where, Math.max(0, width - widthOf(counts))), ...whereStyle(session));
   const fill = " ".repeat(Math.max(0, width - visibleLength(left) - visibleLength(right)));
   return rowPrefix({ ...BLANK_CELLS, bar: blockBar(session, isSelected, part) }) + indent + left + fill + right;
 }
@@ -259,6 +258,17 @@ function solid(line: string, layout: Layout, status: Status, isSelected: boolean
   const fill = " ".repeat(Math.max(0, layout.columns - 2 - body.length));
   const block = style((isSelected ? body.slice(1) : body) + fill, statusStyle(status)[0], ANSI.reverse, ...(isSelected ? [ANSI.bold] : []));
   return ` ${isSelected ? selectionBar(true) : ""}${block}`;
+}
+
+/** Only what still works: a finished one would stay for minutes and say nothing you act on. */
+const workingIn = ({ subagents = [] }: Session) => subagents.filter((agent) => agent.status === "busy");
+
+function subagentLine(agent: Subagent, isSelected: boolean, layout: Layout, bar = selectionBar(isSelected)): string {
+  const prefix = rowPrefix({ ...BLANK_CELLS, bar });
+  // Hangs off its agent like a reviewer does, dotted and in its own colour, so the two never read alike.
+  const hook = `${ICON.child}${ICON.dotted} ${ICON.subagent} `;
+  const title = truncate(subagentTitle(agent), layout.titleWidth - hook.length);
+  return prefix + style(hook, ANSI.magenta) + padRight(title, layout.titleWidth - hook.length) + rowSuffix(style(padRight(relativeAge(agent.since), AGE_WIDTH), ANSI.dim));
 }
 
 function snippetLine(snippet: string, isSelected: boolean, layout: Layout, bar = selectionBar(isSelected)): string {
@@ -290,7 +300,6 @@ function renderDetail(session: Session, layout: Layout, reviews: Reviews): strin
 
   if (session.root) {
     push(checkoutLine(session) + changesSummary(session));
-    if (session.changes?.paths.length) wrapWords(session.changes.paths.join("  "), subWidth, 2).forEach(sub);
     sub(style(truncate(tildify(session.cwd, HOME), subWidth), ANSI.dim));
     for (const root of session.roots.filter((r) => r !== session.root).slice(0, MAX_EXTRA_ROOTS)) {
       sub(style(truncate(`also in ${tildify(root, HOME)}`, subWidth), ANSI.dim));

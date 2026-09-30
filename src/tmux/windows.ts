@@ -1,12 +1,13 @@
 import { basename } from "node:path";
 import { succeeds } from "../lib/shell";
+import { popupBehind, popupFrame } from "../commands/menu";
 import { OWN_PANE, tmux } from "./env";
 
 export async function newTmuxWindow(cwd: string, command: string, session?: string, name = basename(cwd)): Promise<string | undefined> {
   const target = session ? ["-t", `${session}:`] : [];
   const paneId = await tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", cwd, "-n", name, ...target);
   if (!paneId) return undefined;
-  await succeeds(["tmux", "send-keys", "-t", paneId, command, "Enter"]);
+  if (command) await succeeds(["tmux", "send-keys", "-t", paneId, command, "Enter"]);
   return paneId;
 }
 
@@ -42,6 +43,7 @@ export async function pasteIntoPane(paneId: string, text: string): Promise<boole
 
 const POPUP_SIZE = "95%";
 
-export function tmuxPopup(cwd: string, command: string, title: string): Promise<boolean> {
-  return succeeds(["tmux", "display-popup", "-E", "-d", cwd, "-w", POPUP_SIZE, "-h", POPUP_SIZE, "-T", ` ${title} `, command]);
+export function tmuxPopup(cwd: string, command: string, title: string, over = OWN_PANE): Promise<boolean> {
+  const popup = [...popupFrame(POPUP_SIZE, POPUP_SIZE), "-d", cwd, "-T", `#[fg=cyan,bold,reverse] ${title.replaceAll("#", "##")} #[default]`, command];
+  return over ? popupBehind(over, popup) : succeeds(["tmux", "display-popup", "-E", ...popup]);
 }

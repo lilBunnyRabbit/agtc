@@ -1,13 +1,10 @@
 import { existsSync } from "node:fs";
-import { basename } from "node:path";
-import { showInCode } from "../../commands/code";
 import { openInEditor } from "../../desktop/editor";
 import { shellQuote } from "../../lib/shell";
 import { tildify } from "../../lib/text";
 import { type Session, resumeCommand, workDir } from "../../model/session";
 import { HOME } from "../../paths";
 import { focusTerminalTab } from "../../sources/terminal";
-import { OWN_PANE } from "../../tmux/env";
 import { focusTmuxPane } from "../../tmux/stage";
 import { tmuxPopup } from "../../tmux/windows";
 import { writeHelp } from "../help";
@@ -81,30 +78,8 @@ export function openEditor(ctx: AppContext, session: Session): void {
   ctx.say(command ? `opened: ${command}` : "editor not found. Set AGTC_EDITOR.");
 }
 
-export function openVscode(ctx: AppContext, session: Session): void {
-  const dir = existingWorkDir(ctx, session);
-  if (!dir) return;
-  ctx.say("switching VS Code…");
-  void showInCode(dir, session).then(({ text }) => {
-    ctx.say(text);
-    void ctx.refresh();
-  });
-}
-
 export function showHelp(ctx: AppContext): void {
   const path = writeHelp();
   const pager = `less -R -K -~ -Ps${shellQuote(" ↑↓ scroll · q closes ")} ${shellQuote(path)}`;
-  void tmuxPopup(HOME, pager, "agtc keys · q closes").then((ok) => ctx.say(ok ? "" : "could not open popup"));
-}
-
-export function reviewDiff(ctx: AppContext, session: Session): void {
-  if (!OWN_PANE) {
-    ctx.say("v needs agtc inside tmux: run `agtc tmux`");
-    return;
-  }
-  const dir = existingWorkDir(ctx, session);
-  if (!dir) return;
-  const command = `command -v lazygit >/dev/null && exec lazygit || exec git diff HEAD`;
-  ctx.say(`reviewing ${tildify(dir, HOME)}…`);
-  void tmuxPopup(dir, command, basename(dir)).then((ok) => ctx.say(ok ? "" : "could not open popup"));
+  void ctx.behindPopup(tmuxPopup(HOME, pager, "agtc keys · q closes")).then((ok) => ctx.say(ok ? "" : "could not open popup"));
 }

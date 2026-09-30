@@ -7,6 +7,7 @@ export const Key = {
   backspaceAlt: "\b",
   tab: "\t",
   shiftTab: "\x1b[Z",
+  altEnter: "\x1b\r",
   up: "\x1b[A",
   down: "\x1b[B",
   right: "\x1b[C",
@@ -25,7 +26,10 @@ export function splitKeys(chunk: string): string[] {
   const keys: string[] = [];
   let i = 0;
   while (i < chunk.length) {
-    if (chunk[i] === "\x1b" && chunk[i + 1] === "[") {
+    if (chunk.startsWith(Key.altEnter, i)) {
+      keys.push(Key.altEnter);
+      i += Key.altEnter.length;
+    } else if (chunk[i] === "\x1b" && chunk[i + 1] === "[") {
       let end = i + 2;
       while (end < chunk.length && !/[A-Za-z~]/.test(chunk[end])) end++;
       if (chunk.slice(i, end + 1) === LEGACY_MOUSE) end += LEGACY_MOUSE_BYTES;
@@ -82,9 +86,6 @@ export const paneKey = ({ paneId, key }: PaneKey) => `\x1b[>${paneId.slice(1)};$
 
 /** Asks for the menu of actions instead of one of them. */
 export const MENU_KEY = " ";
-
-/** Asks for the question of whichever agent waits, not for the pane's own. */
-export const ANSWER_KEY = "y";
 
 export function parsePaneKey(key: string): PaneKey | undefined {
   const match = key.match(PANE_KEY);

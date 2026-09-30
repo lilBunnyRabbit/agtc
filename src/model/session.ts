@@ -61,6 +61,8 @@ export interface Subagent {
   since: number;
 }
 
+export const subagentTitle = ({ kind, description }: Subagent) => (kind ? `${kind}: ${description}` : description);
+
 export interface Session extends SessionInput {
   searchText: string;
 }

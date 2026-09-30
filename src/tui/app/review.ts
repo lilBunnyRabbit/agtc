@@ -1,15 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { copyToClipboard } from "../../lib/shell";
-import { collapse, tildify } from "../../lib/text";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { copyToClipboard, shellQuote, succeeds } from "../../lib/shell";
+import { collapse, plural, tildify } from "../../lib/text";
 import { type Session, type Tool, isTool } from "../../model/session";
 import { reviewerFor } from "../../model/tools";
 import { HOME } from "../../paths";
+import { INSTALL_HINT, REVIEW_KEYS, REVIEW_TOOL, commentsMessage, countComments } from "../../review/comments";
 import { reviewerCommand, writeReviewPrompt } from "../../review/prompt";
 import { reportMessage, reviewerReport } from "../../review/report";
 import { resolveSpec, specPath, specRequest } from "../../review/spec";
 import { baseBranch, checkoutName } from "../../sources/git";
-import { killPane, pasteIntoPane } from "../../tmux/windows";
+import { OWN_PANE, agtcShell } from "../../tmux/env";
+import type { ChangesInfo } from "../changes";
+import { killPane, pasteIntoPane, tmuxPopup } from "../../tmux/windows";
 import { startAgent, tmuxTarget } from "./agents";
 import type { AppContext } from "./context";
 import { existingWorkDir, showPane } from "./stage";
@@ -115,6 +120,36 @@ async function handTo(ctx: AppContext, session: Session, text: string): Promise<
   }
   await showPane(ctx, paneId);
   return "pane";
+}
+
+/** `v`: what changed, uncommitted, the whole branch or one commit, in revdiff. Comments from every visit add up and go to the session's input, unsent. */
+export async function reviewChanges(ctx: AppContext, session: Session, from?: string): Promise<void> {
+  if (!OWN_PANE) return ctx.say("v needs agtc inside tmux: run `agtc tmux`");
+  const dir = existingWorkDir(ctx, session);
+  if (!dir) return;
+  if (!(await succeeds(["which", REVIEW_TOOL]))) return ctx.say(`${REVIEW_TOOL} not found: ${INSTALL_HINT}`);
+  const keys = join(tmpdir(), "agtc-revdiff-keys");
+  writeFileSync(keys, REVIEW_KEYS);
+  const { changes, branch } = session;
+  const info: ChangesInfo = {
+    dir,
+    where: [tildify(dir, HOME), branch].filter(Boolean).join(" · "),
+    base: changes?.base,
+    ahead: changes?.ahead,
+    uncommitted: changes && { files: changes.paths.length, insertions: changes.insertions, deletions: changes.deletions },
+    keys,
+    output: join(tmpdir(), `agtc-comments-${randomUUID()}.md`),
+  };
+  const command = `${agtcShell()} changes ${shellQuote(Buffer.from(JSON.stringify(info)).toString("base64url"))}`;
+  await ctx.behindPopup(tmuxPopup(dir, command, `review · ${basename(dir)}`, from));
+  const annotations = existsSync(info.output) ? readFileSync(info.output, "utf8") : "";
+  rmSync(info.output, { force: true });
+  const count = countComments(annotations);
+  if (!count) return ctx.say("no comments");
+  const where = await handTo(ctx, session, commentsMessage(annotations));
+  const comments = plural(count, "comment", "comments");
+  if (where === "pane") ctx.say(`${comments} pasted into "${collapse(session.title, 40)}": enter there sends them`);
+  else if (where === "clipboard") ctx.say(`${comments} copied: the session is out of reach, paste them there`);
 }
 
 export function reportFindings(ctx: AppContext, reviewer: Session): void {

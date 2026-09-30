@@ -36,7 +36,7 @@ export interface MenuInfo {
 export interface Action {
   key: string;
   label: string;
-  does: "hub" | "own" | "back" | "layout" | "jump";
+  does: "hub" | "own" | "layout" | "jump";
   command?: string;
   opensPopup?: boolean;
 }
@@ -47,7 +47,7 @@ interface Group {
 }
 
 /** Keys agtc has a command for, so they work in a pane it knows no agent of. */
-const OWN_COMMAND: Record<string, string> = { e: "code", o: "edit" };
+const OWN_COMMAND: Record<string, string> = { o: "edit" };
 
 /** The hub's keys by their letters, as far as they apply to the pane's agent. */
 function hubKeys({ kind, status = "idle" }: MenuInfo, keys: string[]): Action[] {
@@ -60,18 +60,10 @@ function hubKeys({ kind, status = "idle" }: MenuInfo, keys: string[]): Action[] 
 }
 
 function columns(info: MenuInfo): [Group[], Group[]] {
-  const open: Group = { name: "open", actions: hubKeys(info, ["e", "o", "v"]) };
-  const move: Group = {
-    name: "move",
-    actions: [...hubKeys(info, ["J", "K"]), { key: "a", label: "back to agtc", does: "back" }, { key: " ", label: "flip layout", does: "layout" }],
-  };
-  if (info.kind === "none") return [[open], [move]];
-  const agent: Group = { name: info.kind, actions: hubKeys(info, ["V", "x", "X", "m", "c"]) };
-  const fresh: Group = { name: "new", actions: hubKeys(info, ["n"]) };
-  return [
-    [agent, fresh],
-    [open, move],
-  ];
+  const open: Group = { name: "open", actions: hubKeys(info, ["o", "v"]) };
+  const layout: Group = { name: "layout", actions: [{ key: " ", label: "flip layout", does: "layout" }] };
+  if (info.kind === "none") return [[open], [layout]];
+  return [[{ name: info.kind, actions: hubKeys(info, ["V", "x", "X"]) }], [open, layout]];
 }
 
 const jumps = ({ others }: MenuInfo): Action[] => others.map(({ digit, title }) => ({ key: digit, label: title, does: "jump" }));

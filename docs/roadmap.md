@@ -75,6 +75,23 @@ The first six shipped on 2026-09-23, the seventh a day later, all unreleased. Wh
 
 ## Next
 
+Written 2026-09-29, after roomy rows, pane headers and subagent rows. Updated 2026-09-30:
+the new popup (`n`, `option-n`) is in; `v` lists uncommitted work, the branch and every
+commit, opens one in revdiff and hands the line comments to the agent. lazygit and `C` are gone.
+
+- Diff review with line comments: see the changes beside the agent or in a popup, comment on
+  lines or hunks, send all of it to the agent in one go. The one that matters most.
+- Peek and answer, taken out 2026-09-30 to revisit: `space` showed an agent's screen in a
+  popup, `y` / `option-y` answered whichever agent needed input from there, keys typed into
+  its pane while `~/.claude/sessions/` said it waited. Also out: waiting agents in the tmux
+  status line with click to jump; the user found it a mess next to the window list. In git
+  at 30e436c.
+- Notifications through the terminal (OSC 9 / 777), so the banner needs no `osascript`.
+- Dim the pane you are not typing in, the way the backdrop dims what is behind a popup.
+- A click on a pane header opens that pane's menu.
+- Command palette: one key anywhere, type to filter actions and sessions.
+- Owed: the row diagram in `src/tui/layout.ts` shows neither the second line nor a subagent's.
+
 - Depth-2 subagents as a third column, or indented under their agent, once a session with
   them is on screen often enough to matter.
 - Notify on a reviewer finishing with the subject's title, not "review of …", if the banner

@@ -1,29 +1,27 @@
 import type { Options } from "../../cli";
 import { askInPopup } from "../../commands/ask";
-import { HAS_BACKDROP, otherAgents, showMenu } from "../../commands/menu";
+import { HAS_BACKDROP, clearBackdrop, otherAgents, showMenu } from "../../commands/menu";
 import { notify } from "../../desktop/notify";
-import { shownCheckout } from "../../desktop/vscode";
-import { copyToClipboard } from "../../lib/shell";
 import { plural } from "../../lib/text";
 import { filterSessions } from "../../model/search";
-import { type Session, type Status, resumeCommand } from "../../model/session";
+import type { Session, Status } from "../../model/session";
 import { asSeen, collectSessions } from "../../model/sessions";
 import type { StateStore } from "../../model/state-store";
 import { OWN_PANE } from "../../tmux/env";
 import { Chrome } from "../../tmux/chrome";
 import { setupTmux } from "../../tmux/setup";
 import { ANSI, stripAnsi } from "../ansi";
-import { ANSWER_KEY, Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
+import { Key, MENU_KEY, type Mouse, type PaneKey, parseMouse, parsePaneKey } from "../keys";
 import { terminalSize } from "../layout";
 import { jumpTargets } from "../rows";
 import { type Frame, type UiState, initialUiState, renderFrame } from "../render";
 import { openScreen } from "../terminal";
-import { closeAgent, missingFromLastHub, newAgent, newWorktree, restoreLastHub, resumeInTmux } from "./agents";
+import { closeAgent, missingFromLastHub, newWorktree, restoreLastHub, resumeInTmux } from "./agents";
 import type { AppContext, Ask } from "./context";
 import { editPrompt, searchKey } from "./input";
-import { closeReviewer, reportFindings, startReviewer } from "./review";
-import { answerNext, peek } from "./peek";
-import { focus, jumpBy, jumpTo, openEditor, openVscode, reviewDiff, showHelp } from "./stage";
+import { closeReviewer, reportFindings, reviewChanges, startReviewer } from "./review";
+import { openHome } from "./home";
+import { focus, jumpBy, jumpTo, openEditor, showHelp } from "./stage";
 
 const MESSAGE_TTL_MS = 3000;
 /** Nothing reports a double click natively. */
@@ -59,6 +57,7 @@ export class App implements AppContext {
   start(): void {
     openScreen({ mouse: true, onKey: (key) => this.handleKey(key), onResize: () => this.draw() });
     if (OWN_PANE) void setupTmux(OWN_PANE);
+    if (OWN_PANE) void clearBackdrop(OWN_PANE);
     if (OWN_PANE && this.options.chrome) {
       const chrome = new Chrome(OWN_PANE);
       this.chrome = chrome;
@@ -150,12 +149,11 @@ export class App implements AppContext {
       const selectedId = this.selected?.id;
       this.sessions = next;
       this.ui.refreshedAt = Date.now();
-      this.ui.inEditor = shownCheckout();
       const index = selectedId ? filterSessions(next, this.ui).findIndex((s) => s.id === selectedId) : -1;
       if (index >= 0) this.ui.selected = index;
       this.clampSelection();
       this.draw();
-      if (!this.dimmed) this.chrome?.sync(this.sessions, jumpTargets(this.visible));
+      if (!this.dimmed) this.chrome?.sync(this.sessions);
       this.offerRestore();
 
       if (this.polled) this.alert(this.sessions.filter((s) => wantsYou(s.status) && before.get(s.id) !== s.status));
@@ -190,12 +188,6 @@ export class App implements AppContext {
     this.say("all marked seen");
   }
 
-  private copyResume(session: Session): void {
-    const command = resumeCommand(session);
-    copyToClipboard(command);
-    this.say(`copied: ${command}`);
-  }
-
   // ---------------------------------------------------------------- input
 
   private handleKey(key: string): void {
@@ -217,10 +209,7 @@ export class App implements AppContext {
     if (this.ui.prompt) return;
     const session = this.sessions.find((s) => s.status !== "inactive" && s.tmux?.paneId === paneId);
     if (key === MENU_KEY) return void (OWN_PANE && void this.behindPopup(showMenu(session, paneId, OWN_PANE, otherAgents(jumpTargets(this.visible), session))));
-    if (key === ANSWER_KEY) {
-      this.askedFrom = paneId;
-      return answerNext(this, paneId);
-    }
+    if (key === "n") return openHome(this, session, paneId);
     if (!session) return this.say(`no agent in pane ${paneId}`);
     this.askedFrom = paneId;
     this.ui.searchMode = false;
@@ -312,17 +301,11 @@ export class App implements AppContext {
         this.say("refreshing…");
         void this.refresh();
         return;
-      case "c":
-        if (session) this.copyResume(session);
-        return;
       case "o":
         if (session) openEditor(this, session);
         return;
-      case "e":
-        if (session) openVscode(this, session);
-        return;
       case "v":
-        if (session) reviewDiff(this, session);
+        if (session) void reviewChanges(this, session, this.askedFrom);
         return;
       case "V":
         if (session) session.reviewOf ? reportFindings(this, session) : startReviewer(this, session);
@@ -333,18 +316,12 @@ export class App implements AppContext {
       case "X":
         if (session) session.reviewOf ? closeReviewer(this, session) : closeAgent(this, session);
         return;
-      case " ":
-        if (session) peek(this, session, this.askedFrom);
-        return;
-      case "y":
-        return answerNext(this, this.askedFrom);
       case "J":
         return jumpBy(this, -1);
       case "K":
         return jumpBy(this, 1);
       case "n":
-        if (session) newAgent(this, session);
-        return;
+        return openHome(this, session, this.askedFrom);
       case "N":
         if (session) newWorktree(this, session);
         return;
