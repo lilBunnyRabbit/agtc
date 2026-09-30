@@ -74,8 +74,8 @@ export const ACTIONS: KeyAction[] = [
     section: "review",
     hint: true,
     opensPopup: true,
-    help: "what changed, in a popup: uncommitted, the whole branch or any commit; enter opens it in revdiff, a comments on a line, esc goes back to the list. esc there hands every comment to the session's input, unsent",
-    also: "Q drops the comments",
+    help: "what changed, in a popup: uncommitted, the whole branch or any commit; enter opens it in revdiff, a comments on a line, q there hands the comments to the session",
+    also: "leaving revdiff without comments goes back to the list; Q there drops them",
   },
   {
     key: "V",

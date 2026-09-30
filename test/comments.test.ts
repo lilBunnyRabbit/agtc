@@ -25,25 +25,25 @@ describe("review targets", () => {
   test("keeps its height and marks the selection", () => {
     const list = targets(info, parseLog(log.repeat(40)));
     for (const selected of [0, 40, list.length - 1]) {
-      const lines = renderChanges(info, list, { selected, comments: 2 }, 100, 30).map(stripAnsi);
+      const lines = renderChanges(info, list, { selected }, 100, 30).map(stripAnsi);
       expect(lines.length).toBeLessThanOrEqual(30);
       expect(lines.filter((line) => line.includes("▌"))).toHaveLength(1);
     }
-    expect(renderChanges(info, list, { selected: 0, comments: 2 }, 100, 30).map(stripAnsi).join("\n")).toContain("2 comments so far");
   });
 });
 
 describe("comments", () => {
   test("each visit says what it was on, and only ## headings count", () => {
     const block = commentBlock({ kind: "commit", sha: "abc1234", subject: "feat: x", parent: true, at: 0 }, annotations);
-    expect(block).toStartWith('### On commit abc1234 "feat: x"\n\n## math.ts:2 (+)');
+    expect(block).toStartWith('On commit abc1234 "feat: x":\n\n## math.ts:2 (+)');
+    expect(commentBlock({ kind: "uncommitted" }, annotations)).toStartWith("## math.ts:2 (+)");
     expect(countComments(block)).toBe(3);
     expect(countComments("")).toBe(0);
   });
 
   test("the message counts the comments and keeps them as written", () => {
     const message = commentsMessage("## math.ts:2 (+)\nuse strict equality\n");
-    expect(message).toStartWith("My review of your changes, 1 comment.");
+    expect(message).toStartWith("Review comments on your changes, 1 comment.");
     expect(message).toEndWith("\n\n## math.ts:2 (+)\nuse strict equality\n");
   });
 });

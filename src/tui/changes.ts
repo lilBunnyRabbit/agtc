@@ -16,7 +16,6 @@ export interface ChangesInfo {
 
 export interface Pick {
   selected: number;
-  comments: number;
 }
 
 const MARGIN = 2;
@@ -63,7 +62,6 @@ export function renderChanges(info: ChangesInfo, list: Target[], pick: Pick, col
   });
   const body = lines.flat().slice(0, room);
   const blank = Array.from({ length: room - body.length }, () => "");
-  const count = pick.comments ? style(`${plural(pick.comments, "comment", "comments")} so far`, ANSI.bold, ANSI.yellow) : style("no comments yet", ANSI.dim);
-  const hint = style("↑↓ pick   enter opens it in revdiff   esc hands the comments over   Q drops them", ANSI.dim);
-  return ["", style(info.where, ANSI.bold, ANSI.cyan), "", ...body, ...blank, count, hint].map((line) => " ".repeat(MARGIN) + line);
+  const hint = style("↑↓ pick   enter opens it in revdiff, a comments a line, q there sends the comments   esc closes", ANSI.dim);
+  return ["", style(info.where, ANSI.bold, ANSI.cyan), "", ...body, ...blank, "", hint].map((line) => " ".repeat(MARGIN) + line);
 }

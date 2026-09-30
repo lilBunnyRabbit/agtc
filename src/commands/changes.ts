@@ -32,7 +32,7 @@ export function changesScreen(packed: string | undefined): Promise<number> {
     return Promise.resolve(1);
   }
   const list = targets(info, commits(info.dir));
-  const pick: Pick = { selected: 0, comments: 0 };
+  const pick: Pick = { selected: 0 };
   return new Promise((done) => {
     const out = process.stdout;
     const draw = () => out.write(ANSI.clearScreen + renderChanges(info, list, pick, out.columns, out.rows).join("\n"));
@@ -48,12 +48,12 @@ export function changesScreen(packed: string | undefined): Promise<number> {
       }
       if (key === Key.enter && list[pick.selected]) {
         screen.close();
-        pick.comments += visit(info, list[pick.selected]);
+        // Leaving revdiff with comments means they are done: straight to the agent. Without, you are still browsing.
+        if (visit(info, list[pick.selected])) return done(0);
         screen = openScreen({ onKey, onResize: draw });
         return draw();
       }
-      if (key === "Q") rmSync(info.output, { force: true });
-      if (key !== Key.escape && key !== "q" && key !== "Q") return;
+      if (key !== Key.escape && key !== "q") return;
       screen.close();
       done(0);
     };

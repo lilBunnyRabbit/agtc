@@ -26,7 +26,7 @@ export function targetLabel(target: Target): string {
 }
 
 /** Each visit's comments under what they were written on: a line number means that version of the file. */
-export const commentBlock = (target: Target, annotations: string) => `### On ${targetLabel(target)}\n\n${annotations.trim()}\n\n`;
+export const commentBlock = (target: Target, annotations: string) => `${target.kind === "uncommitted" ? "" : `On ${targetLabel(target)}:\n\n`}${annotations.trim()}\n\n`;
 
 const HEADING = /^## .+$/gm;
 
@@ -34,6 +34,6 @@ export const countComments = (annotations: string) => annotations.match(HEADING)
 
 export function commentsMessage(annotations: string): string {
   const count = countComments(annotations);
-  const intro = `My review of your changes, ${plural(count, "comment", "comments")}. Each ### says what I looked at, each ## heading names the file and the line in that version, (+) an added line, (-) a removed one. Work through all of them.`;
+  const intro = `Review comments on your changes, ${plural(count, "comment", "comments")}. (+) is an added line, (-) a removed one.`;
   return `${intro}\n\n${annotations.trim()}\n`;
 }
