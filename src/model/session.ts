@@ -41,6 +41,10 @@ export interface SessionInput {
   startedAt?: number;
   tty?: string;
   tmux?: TmuxLocation;
+  /** What other Claude sessions address it by. */
+  name?: string;
+  /** Claude only: where a message reaches it as a turn of its own. */
+  inbox?: string;
   viewed?: boolean;
   reviewOf?: string;
   /** What a finished reviewer concluded, from the `## Verdict` section of its report. */

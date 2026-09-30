@@ -23,6 +23,7 @@ export interface Options {
   dir: string;
   file?: string;
   row?: string;
+  message?: string;
   pane?: string;
   action?: "prune" | "rm";
   name?: string;
@@ -43,8 +44,10 @@ Usage
   agtc graph           read-only overview of what runs: a box per session, its reviewers and
                        subagents in boxes to the right, live; q quits
   agtc attach [DIR]    show the agent running in DIR (default cwd) in this terminal, live
-  agtc send [DIR] --file F --row N
-                       type "F:N" plus $AGTC_SELECTION as a code block into that agent's input
+  agtc send [DIR] --message TEXT [--file F --row N]
+                       send TEXT, "F:N" and $AGTC_SELECTION as a code block to that agent: a Claude
+                       session gets it as a message and acts on it, anything else finds it in
+                       its input, unsent
   agtc edit [DIR]      open DIR's checkout (default cwd) in the editor, like o in the hub.
                        --pane ID takes the agent in that tmux pane; prefix space, then o, does that
   agtc worktrees [DIR] the worktrees of DIR's repository (default cwd): what runs or last ran in
@@ -163,6 +166,7 @@ export function parseArgs(argv: string[]): Options {
     jump: jump === "zed" ? "zed" : "tmux",
     dir: positional ?? process.cwd(),
     file: stringAfter("--file"),
+  message: stringAfter("--message"),
     row: stringAfter("--row"),
     pane: stringAfter("--pane"),
     action,

@@ -42,3 +42,18 @@ describe("specPath", () => {
     expect(specPath("abc").endsWith("/specs/abc.md")).toBe(true);
   });
 });
+
+describe("reviewer and author", () => {
+  test("a Claude reviewer is named, codex is not", () => {
+    expect(reviewerCommand("claude", "id-1", "/p/r.md", "agtc review")).toContain(`--session-id id-1 -n 'agtc review' `);
+    expect(reviewerCommand("codex", "id-1", "/p/r.md", "agtc review")).not.toContain("-n ");
+  });
+
+  test("questions go to the author when it can be messaged, else to me", () => {
+    const withAuthor = reviewPrompt({ spec: "S", author: "agtc-11" });
+    expect(withAuthor).toContain('session "agtc-11", with the SendMessage tool');
+    expect(withAuthor).toContain("ask its user");
+    expect(withAuthor).not.toContain("stop and ask me");
+    expect(reviewPrompt({ spec: "S" })).toContain("stop and ask me");
+  });
+});

@@ -12,6 +12,7 @@ import { reviewerCommand, writeReviewPrompt } from "../../review/prompt";
 import { reportMessage, reviewerReport } from "../../review/report";
 import { resolveSpec, specPath, specRequest } from "../../review/spec";
 import { baseBranch, checkoutName } from "../../sources/git";
+import { postToInbox } from "../../sources/claude/inbox";
 import { OWN_PANE, agtcShell } from "../../tmux/env";
 import type { ChangesInfo } from "../changes";
 import { killPane, pasteIntoPane, tmuxPopup } from "../../tmux/windows";
@@ -60,7 +61,8 @@ export function startReviewer(ctx: AppContext, session: Session): void {
 /** The author knows what was built: the request lands in its input, you send it, `V` again once the file exists. */
 function requestSpec(ctx: AppContext, session: Session, path: string): void {
   void handTo(ctx, session, specRequest(path)).then((where) => {
-    if (where === "pane") ctx.say(`spec request in "${collapse(session.title, 40)}": enter there, then V again`);
+    if (where === "inbox") ctx.say(`spec request sent to "${collapse(session.title, 40)}": V again once the file exists`);
+    else if (where === "pane") ctx.say(`spec request in "${collapse(session.title, 40)}": enter there, then V again`);
     else if (where === "clipboard") ctx.say(session.status === "inactive" ? "spec request copied: R resumes the session, paste it there" : "spec request copied: the session runs outside tmux, paste it there");
   });
 }
@@ -68,13 +70,14 @@ function requestSpec(ctx: AppContext, session: Session, path: string): void {
 async function launchReviewer(ctx: AppContext, session: Session, dir: string, spec: string, tool: Tool, tmuxSession: string | undefined): Promise<void> {
   const id = randomUUID();
   const base = session.changes?.base ?? (await baseBranch(dir));
-  const promptPath = writeReviewPrompt(id, { spec, base });
+  const name = `${await checkoutName(dir)} review`;
+  const promptPath = writeReviewPrompt(id, { spec, base, author: tool === "claude" ? session.name : undefined });
   const paneId = await startAgent(ctx, {
     tool,
     dir,
     tmuxSession,
-    command: reviewerCommand(tool, id, promptPath),
-    name: `${await checkoutName(dir)} review`,
+    command: reviewerCommand(tool, id, promptPath, name),
+    name,
     beside: session.tmux?.paneId,
     note: ` to review "${collapse(session.title, 40)}"`,
   });
@@ -107,8 +110,25 @@ export function closeReviewer(ctx: AppContext, session: Session): void {
   });
 }
 
-/** Text into a session's input, unsent. One the paste cannot reach gets it on the clipboard. */
-async function handTo(ctx: AppContext, session: Session, text: string): Promise<"pane" | "clipboard" | undefined> {
+type HandedTo = "inbox" | "held" | "pane" | "clipboard" | undefined;
+
+/**
+ * A Claude session takes text on its inbox and acts on it. Any other gets it typed into its
+ * input, unsent; one the paste cannot reach gets it on the clipboard.
+ */
+async function handTo(ctx: AppContext, session: Session, text: string): Promise<HandedTo> {
+  if (session.status !== "inactive" && session.inbox && session.pid) {
+    const delivery = await postToInbox({ pid: session.pid, socket: session.inbox }, text);
+    if (delivery === "delivered") {
+      if (session.tmux) await showPane(ctx, session.tmux.paneId);
+      return "inbox";
+    }
+    if (delivery !== "unreachable") {
+      copyToClipboard(text);
+      ctx.say(`"${collapse(session.title, 40)}" ${delivery} the message${delivery === "held" ? ", it wants its user's approval first" : ""}: copied, paste it there`);
+      return "held";
+    }
+  }
   if (session.status === "inactive" || !session.tmux) {
     copyToClipboard(text);
     return "clipboard";
@@ -148,7 +168,8 @@ export async function reviewChanges(ctx: AppContext, session: Session, from?: st
   if (!count) return ctx.say("no comments");
   const where = await handTo(ctx, session, commentsMessage(annotations));
   const comments = plural(count, "comment", "comments");
-  if (where === "pane") ctx.say(`${comments} pasted into "${collapse(session.title, 40)}": enter there sends them`);
+  if (where === "inbox") ctx.say(`${comments} sent to "${collapse(session.title, 40)}"`);
+  else if (where === "pane") ctx.say(`${comments} pasted into "${collapse(session.title, 40)}": enter there sends them`);
   else if (where === "clipboard") ctx.say(`${comments} copied: the session is out of reach, paste them there`);
 }
 
@@ -173,7 +194,8 @@ export function reportFindings(ctx: AppContext, reviewer: Session): void {
   }
   ctx.markSeen(reviewer);
   void handTo(ctx, subject, reportMessage(reviewer, report)).then((where) => {
-    if (where === "pane") ctx.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
+    if (where === "inbox") ctx.say(`report sent to "${collapse(subject.title, 40)}"`);
+    else if (where === "pane") ctx.say(`report pasted into "${collapse(subject.title, 40)}": read it, then enter`);
     else if (where === "clipboard") ctx.say(subject.status === "inactive" ? "report copied: R resumes the session, then paste" : `report copied: "${collapse(subject.title, 40)}" runs outside tmux, paste it there`);
   });
 }

@@ -79,6 +79,21 @@ Written 2026-09-29, after roomy rows, pane headers and subagent rows. Updated 20
 the new popup (`n`, `option-n`) is in; `v` lists uncommitted work, the branch and every
 commit, opens one in revdiff and hands the line comments to the agent. lazygit and `C` are gone.
 
+Session messaging (2026-09-30, after 1.13.0): Claude Code sessions message each other over a
+unix socket, `SendMessage` / `ListAgents` inside, `~/.claude/sessions/<pid>.json` names the
+socket (`messagingSocketPath`) and the tmux pane, the `<pid>.<hash>.key` beside it holds the
+token. Wire: one JSON line `{"type":"auth","token":…}`, then
+`{"type":"user","message":{"role":"user","content":…}}`. An idle session wakes into a turn, a
+busy one reads it between tool calls, the model sees `<cross-session-message from=…>`.
+`src/sources/claude/inbox.ts` posts that way; `agtc send --message`, `v` comments, the spec
+request and `V` on a reviewer use it for a Claude target and fall back to the paste for Codex.
+A Claude reviewer is started `-n "<checkout> review"` and told the author's session name, so
+its questions go to the author; the author is told to bring the user what it cannot answer.
+Open: whether a message from agtc (not a session, no permission mode to compare) is delivered
+or held for approval by the receiver; `peer_message_status` on the same connection is parsed
+when it comes, a silent close counts as delivered. Not built: automatic hand-back when a
+reviewer finishes (the user wants the verdict first), `notify_when_idle` (the poll sees it).
+
 - Diff review with line comments: see the changes beside the agent or in a popup, comment on
   lines or hunks, send all of it to the agent in one go. The one that matters most.
 - Peek and answer, taken out 2026-09-30 to revisit: `space` showed an agent's screen in a

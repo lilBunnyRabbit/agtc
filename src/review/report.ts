@@ -34,5 +34,5 @@ export function reviewerVerdict(session: Session): Verdict | undefined {
 }
 
 export function reportMessage(reviewer: Session, report: string): string {
-  return `Review findings from a ${reviewer.tool} reviewer that saw only the spec and the diff, not this conversation:\n\n${report}\n`;
+  return `Review findings from a ${reviewer.tool} reviewer that saw only the spec and the diff, not this conversation. Work through them; a finding you disagree with, or a fix the spec does not settle, you take to me before deciding.\n\n${report}\n`;
 }

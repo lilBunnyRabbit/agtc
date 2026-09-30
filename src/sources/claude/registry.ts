@@ -15,6 +15,8 @@ export interface ClaudeRegistration {
   statusUpdatedAt?: number;
   updatedAt?: number;
   startedAt?: number;
+  /** The socket the session takes messages on, see `inbox.ts`. */
+  messagingSocketPath?: string;
 }
 
 const SESSIONS_DIR = join(CLAUDE_DIR, "sessions");

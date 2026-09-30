@@ -7,12 +7,21 @@ import { PROMPTS_DIR } from "../paths";
 export interface ReviewRequest {
   spec: string;
   base?: string;
+  /** The reviewed session's name, when it is a Claude session the reviewer can message. */
+  author?: string;
 }
 
-export function reviewPrompt({ spec, base }: ReviewRequest): string {
+/** The author knows what was built, so a question goes there first; what it does not know, it takes to its user rather than settling by itself. */
+const askAuthor = (author: string) =>
+  `- Questions about the work go to its author first: session "${author}", with the SendMessage tool (ListAgents shows it). Tell it to ask its user for whatever it does not know for certain, not to decide by itself. Wait for the answer. Ask me only when it cannot answer.`;
+
+export function reviewPrompt({ spec, base, author }: ReviewRequest): string {
   const scope = base
     ? `Commits: \`git diff ${base}...HEAD\`. Uncommitted work: \`git diff HEAD\` plus untracked files from \`git status\`.`
     : "Uncommitted work: `git diff HEAD` plus untracked files from `git status`, and the recent commits in `git log` that belong to it.";
+  const questions = author
+    ? askAuthor(author)
+    : "- When the spec is unclear, or the diff cannot be judged without something only the author knows, stop and ask me before concluding.";
   return `You review work another agent did in this checkout. You know nothing about that agent's reasoning and you must not go looking for it: never read session transcripts, ~/.claude or ~/.codex.
 
 ## Spec
@@ -27,7 +36,7 @@ Read as much surrounding code as you need. Judge the code alone: does it do what
 ## Rules
 
 - Read-only. Do not edit files, do not run anything that changes the checkout, do not commit or push.
-- When the spec is unclear, or the diff cannot be judged without something only the author knows, stop and ask me before concluding.
+${questions}
 - Findings only, no praise. Skip formatting unless it changes meaning.
 
 ## Report
@@ -53,8 +62,10 @@ export function writeReviewPrompt(id: string, request: ReviewRequest): string {
   return path;
 }
 
-export function reviewerCommand(tool: Tool, id: string, promptPath: string): string {
+/** A Claude reviewer gets a name, so the author and ListAgents know it as the review. */
+export function reviewerCommand(tool: Tool, id: string, promptPath: string, name?: string): string {
   const prompt = `"$(cat ${shellQuote(promptPath)})"`;
   if (tool === "codex") return `codex ${readOnlyFlags(tool)} ${prompt}`;
-  return `claude ${prompt} --session-id ${id} ${readOnlyFlags(tool)}`;
+  const named = name ? ` -n ${shellQuote(name)}` : "";
+  return `claude ${prompt} --session-id ${id}${named} ${readOnlyFlags(tool)}`;
 }

@@ -55,7 +55,7 @@ switch (options.mode) {
     process.exit(await attachAgent(options.dir));
 
   case "send":
-    process.exit(await sendToAgent({ dir: options.dir, file: options.file, row: options.row, selection: process.env.AGTC_SELECTION }));
+    process.exit(await sendToAgent({ dir: options.dir, file: options.file, row: options.row, selection: process.env.AGTC_SELECTION, message: options.message }));
 
   case "edit":
     process.exit(await editCommand({ dir: options.dir, pane: options.pane }));

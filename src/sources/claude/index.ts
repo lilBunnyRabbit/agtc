@@ -99,6 +99,8 @@ function liveSession(
     startedAt: registration.startedAt,
     tty,
     tmux: surface?.tmux,
+    name: registration.name,
+    inbox: registration.messagingSocketPath,
     subagents: claudeSubagents(registration.sessionId, registration.cwd),
   };
 }
