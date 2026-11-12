@@ -1,3 +1,5 @@
+<img src="docs/og/og.png" alt="agtc: a terminal dashboard listing Claude Code and Codex sessions as done, busy, input and idle" width="100%">
+
 # agtc — Agent Traffic Control
 
 Air traffic control for your coding agents.

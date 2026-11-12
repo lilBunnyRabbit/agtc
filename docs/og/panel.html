@@ -1,0 +1,37 @@
+<style>
+.term { padding: 16px 16px; font: 14.5px/1.95 var(--mono); }
+.hd { display: flex; gap: 12px; color: var(--dim); white-space: nowrap; }
+.hd b { color: var(--cottontail); }
+.g { margin-top: 16px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.g b { color: var(--fg); }
+.r { display: grid; grid-template-columns: 18px 20px 20px 78px minmax(0, 1fr) 34px; align-items: center; gap: 6px; padding: 0 8px; margin-top: 6px; border-radius: 6px; border-left: 4px solid var(--bg-lightest); white-space: nowrap; }
+.r span:nth-child(5) { overflow: hidden; text-overflow: ellipsis; }
+.r .t { color: var(--dim); text-align: right; }
+.st { font-weight: 600; }
+.r.done { background: var(--primary); border-left-color: var(--primary); color: var(--bg-darkest); }
+.r.done .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.busy { background: var(--secondary); border-left-color: var(--secondary); color: var(--bg-darkest); }
+.r.busy .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.input { background: var(--accent); border-left-color: var(--accent); color: var(--bg-darkest); }
+.r.input .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.idle { color: var(--fg); }
+.sub { padding-left: 52px; color: oklch(0.745 0.0699 330 / 0.9); white-space: nowrap; }
+.cl { color: var(--accent); } .cx { color: var(--tertiary); }
+.r.done .cl, .r.busy .cl, .r.input .cl, .r.done .cx, .r.busy .cx, .r.input .cx { color: inherit; }
+.det { margin: 10px 16px 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-dark); border: 1px solid var(--bg-lighter); font: 13px/1.7 var(--mono); color: var(--dim); }
+.det b { color: var(--fg); font-weight: 600; }
+.det .p { color: var(--primary); } .det .m { color: var(--accent); }
+</style>
+  <div class="bar">agtc<span class="sp"></span><s></s><s></s><s></s></div>
+  <div class="term">
+    <div class="hd"><b>agtc 1.5</b><span>✳ 3</span><span>⬡ 2</span><span>input 1</span><span>done 1</span><span>busy 2</span></div>
+    <div class="g"><b>shop</b> ──────────────────────── 3 sessions</div>
+    <div class="r done"><span>1</span><span></span><span class="cl">✳</span><span class="st">done</span><span>Settings page safe padding</span><span class="t">2m</span></div>
+    <div class="r busy"><span></span><span>⎇</span><span class="cl">✳</span><span class="st">busy</span><span>Sidebar overflow on iOS</span><span class="t">5m</span></div>
+    <div class="sub">╰┄ ◇ reviewer · checking the diff · 1m</div>
+    <div class="r idle"><span></span><span></span><span class="cx">⬡</span><span class="st">idle</span><span>Restyle the chart legend</span><span class="t">1h</span></div>
+    <div class="g"><b>docs</b> ──────────────────────── 2 sessions</div>
+    <div class="r input"><span>2</span><span></span><span class="cl">✳</span><span class="st">input</span><span>Allow npm run build?</span><span class="t">now</span></div>
+    <div class="r busy"><span></span><span></span><span class="cx">⬡</span><span class="st">busy</span><span>Rewrite the install guide</span><span class="t">8m</span></div>
+  </div>
+  <div class="det"><b>~/dev/shop</b> · ⎇ fix/sidebar<br><span class="p">+120</span> <span class="m">−14</span> · 3 files · 2 ahead of origin/main</div>

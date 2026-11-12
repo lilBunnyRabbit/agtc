@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&display=block" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/hack-font@3.3.0/build/web/hack.css" rel="stylesheet">
+<style>
+:root {
+  --bg-darkest: oklch(0.153 0.014 230.47); --bg-darker: oklch(0.187 0.0171 230.47); --bg-dark: oklch(0.221 0.0202 230.47);
+  --bg: oklch(0.255 0.0233 230.47); --bg-light: oklch(0.289 0.0264 230.47); --bg-lighter: oklch(0.323 0.0295 230.47);
+  --bg-lightest: oklch(0.357 0.0326 230.47); --fg: oklch(0.745 0.0078 50.47); --dim: oklch(0.745 0.0078 50.47 / 0.55);
+  --primary: oklch(0.745 0.0699 122.47); --secondary: oklch(0.745 0.0466 302.47); --accent: oklch(0.745 0.0932 50.47);
+  --tertiary: oklch(0.745 0.0233 176.47); --cottontail: oklch(0.949 0.0939 122.47);
+  --info: oklch(0.745 0.1398 240); --success: oklch(0.745 0.1398 140); --warn: oklch(0.745 0.1398 70); --danger: oklch(0.745 0.1398 30);
+  --light-1: oklch(0.983 0.0086 86.47); --light-2: oklch(0.966 0.0172 86.47); --light-3: oklch(0.949 0.0259 86.47);
+  --light-4: oklch(0.8907 0.0566 86.47); --light-5: oklch(0.8325 0.0777 86.47); --light-6: oklch(0.7742 0.0723 86.47);
+  --sans: Inter, sans-serif; --mono: Hack, Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; }
+body { width: 1200px; height: 630px; overflow: hidden; background: var(--bg-darkest); font-family: var(--sans); color: var(--fg); position: relative; }
+.og-glow { position: absolute; inset: 0; background: radial-gradient(60% 70% at 20% 30%, oklch(0.745 0.0699 122.47 / 0.13), transparent 70%), radial-gradient(50% 60% at 85% 90%, oklch(0.745 0.0466 302.47 / 0.10), transparent 70%); }
+.og-frame { position: absolute; inset: 20px; border: 2px solid var(--bg-light); border-radius: 28px; }
+.og-left { position: absolute; left: 76px; top: 0; bottom: 0; width: 470px; display: flex; flex-direction: column; justify-content: center; gap: 24px; }
+.og-brand { display: flex; align-items: center; gap: 0.22em; font-size: 92px; }
+.og-ears { height: 0.9em; width: auto; fill: var(--primary); flex-shrink: 0; }
+.og-left h1 { font-size: 1em; font-weight: 800; letter-spacing: -0.01em; color: var(--cottontail); line-height: 1; }
+.og-tag { font-size: 32px; font-weight: 500; line-height: 1.25; color: var(--fg); }
+.og-tag b { color: var(--primary); font-weight: 600; }
+.og-feat { font-size: 19px; color: oklch(0.745 0.0078 50.47 / 0.7); }
+.og-screen { position: absolute; left: 590px; top: 70px; width: 548px; height: 490px; border-radius: 22px; overflow: hidden; background: var(--bg-darker); border: 1px solid var(--bg-lighter); box-shadow: 0 30px 80px oklch(0 0 0 / 0.5); }
+.bar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--bg-light); font-size: 14px; font-weight: 600; }
+.bar .sp { flex: 1; }
+.bar s { width: 11px; height: 11px; border-radius: 50%; background: oklch(0.745 0.0078 50.47 / 0.3); display: block; text-decoration: none; }
+.mono { font-family: var(--mono); }
+</style></head>
+<body>
+<div class="og-glow"></div>
+<div class="og-frame"></div>
+<div class="og-left">
+  <div class="og-brand"><svg class="og-ears" viewBox="0 0 200 180" aria-hidden="true"><path d="M 180.78951,9.4642023 C 167.26793,35.862516 153.19234,51.171994 121.3308,74.909274 c -9.83885,7.33009 -20.56801,28.781376 -19.83643,53.665226 0.48749,16.58156 -1.19704,24.10166 16.50142,37.51644 10.04673,7.61505 24.84456,10.73078 37.73503,5.21428 9.15926,-3.91972 14.86134,-10.24668 13.85759,-12.07669 -10.05575,3.27975 -20.2675,4.2772 -31.63206,0.60045 -7.22358,-2.33703 -22.34681,-8.63089 -22.43956,-28.48702 -0.0519,-11.10019 5.77576,-23.5906 15.97731,-26.01239 5.65284,-1.34195 12.04702,-0.34048 13.55827,5.86571 -0.89118,-1.49479 -5.42011,-5.00853 -11.88232,-3.18133 -5.71991,1.61731 -11.0719,8.87864 -11.92516,16.26466 5.76133,5.52566 39.66171,12.5901 57.75466,-13.52407 13.38833,-19.323816 19.37298,-44.595936 20.20369,-68.581476 0.84632,-24.436568 -4.89214,-59.107171 -18.41373,-32.7088617 z"/><path d="M 18.49504,9.4642043 C 32.01662,35.862514 46.09221,51.171994 77.95375,74.909274 c 9.83885,7.33009 20.56801,28.781376 19.83643,53.665226 -0.48749,16.58156 1.19704,24.10166 -16.50142,37.51644 -10.04673,7.61505 -24.84456,10.73078 -37.73503,5.21428 -9.15926,-3.91972 -14.86134,-10.24668 -13.85759,-12.07669 10.05575,3.27975 20.2675,4.2772 31.63206,0.60045 7.22358,-2.33703 22.34681,-8.63089 22.43956,-28.48702 0.0519,-11.10019 -5.77576,-23.5906 -15.97731,-26.01239 -5.65284,-1.34195 -12.04702,-0.34048 -13.55827,5.86571 0.89118,-1.49479 5.42011,-5.00853 11.88232,-3.18133 5.71991,1.61731 11.0719,8.87864 11.92516,16.26466 C 72.27833,129.80427 38.37795,136.86871 20.285,110.75454 6.8966696,91.430724 0.91201967,66.158604 0.08130967,42.173064 -0.76501033,17.736494 4.9734496,-16.93411 18.49504,9.4642043 Z"/></svg><h1>
+agtc</h1></div>
+  <p class="og-tag">Air traffic control for your <b>coding agents</b>.</p>
+  <p class="og-feat">Claude Code &amp; Codex sessions · tmux sidebar · diffs</p>
+</div>
+<div class="og-screen">
+<style>
+.term { padding: 16px 16px; font: 14.5px/1.95 var(--mono); }
+.hd { display: flex; gap: 12px; color: var(--dim); white-space: nowrap; }
+.hd b { color: var(--cottontail); }
+.g { margin-top: 16px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.g b { color: var(--fg); }
+.r { display: grid; grid-template-columns: 18px 20px 20px 78px minmax(0, 1fr) 34px; align-items: center; gap: 6px; padding: 0 8px; margin-top: 6px; border-radius: 6px; border-left: 4px solid var(--bg-lightest); white-space: nowrap; }
+.r span:nth-child(5) { overflow: hidden; text-overflow: ellipsis; }
+.r .t { color: var(--dim); text-align: right; }
+.st { font-weight: 600; }
+.r.done { background: var(--primary); border-left-color: var(--primary); color: var(--bg-darkest); }
+.r.done .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.busy { background: var(--secondary); border-left-color: var(--secondary); color: var(--bg-darkest); }
+.r.busy .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.input { background: var(--accent); border-left-color: var(--accent); color: var(--bg-darkest); }
+.r.input .t { color: oklch(0.2 0.02 230 / 0.7); }
+.r.idle { color: var(--fg); }
+.sub { padding-left: 52px; color: oklch(0.745 0.0699 330 / 0.9); white-space: nowrap; }
+.cl { color: var(--accent); } .cx { color: var(--tertiary); }
+.r.done .cl, .r.busy .cl, .r.input .cl, .r.done .cx, .r.busy .cx, .r.input .cx { color: inherit; }
+.det { margin: 10px 16px 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-dark); border: 1px solid var(--bg-lighter); font: 13px/1.7 var(--mono); color: var(--dim); }
+.det b { color: var(--fg); font-weight: 600; }
+.det .p { color: var(--primary); } .det .m { color: var(--accent); }
+</style>
+  <div class="bar">agtc<span class="sp"></span><s></s><s></s><s></s></div>
+  <div class="term">
+    <div class="hd"><b>agtc 1.5</b><span>✳ 3</span><span>⬡ 2</span><span>input 1</span><span>done 1</span><span>busy 2</span></div>
+    <div class="g"><b>shop</b> ──────────────────────── 3 sessions</div>
+    <div class="r done"><span>1</span><span></span><span class="cl">✳</span><span class="st">done</span><span>Settings page safe padding</span><span class="t">2m</span></div>
+    <div class="r busy"><span></span><span>⎇</span><span class="cl">✳</span><span class="st">busy</span><span>Sidebar overflow on iOS</span><span class="t">5m</span></div>
+    <div class="sub">╰┄ ◇ reviewer · checking the diff · 1m</div>
+    <div class="r idle"><span></span><span></span><span class="cx">⬡</span><span class="st">idle</span><span>Restyle the chart legend</span><span class="t">1h</span></div>
+    <div class="g"><b>docs</b> ──────────────────────── 2 sessions</div>
+    <div class="r input"><span>2</span><span></span><span class="cl">✳</span><span class="st">input</span><span>Allow npm run build?</span><span class="t">now</span></div>
+    <div class="r busy"><span></span><span></span><span class="cx">⬡</span><span class="st">busy</span><span>Rewrite the install guide</span><span class="t">8m</span></div>
+  </div>
+  <div class="det"><b>~/dev/shop</b> · ⎇ fix/sidebar<br><span class="p">+120</span> <span class="m">−14</span> · 3 files · 2 ahead of origin/main</div>
+</div>
+<script>
+document.fonts.ready.then(() => {
+  const b = document.querySelector(".og-brand");
+  let s = 92;
+  while (b.scrollWidth > 470 && s > 48) b.style.fontSize = --s + "px";
+});
+</script>
+</body></html>
